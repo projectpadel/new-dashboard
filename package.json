@@ -1,0 +1,19 @@
+{
+  "name": "dashboard-padel",
+  "private": true,
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || >=23"
+  },
+  "description": "Aplikasi ada di folder admin-dashboard-blueprint. Pakai Node 20.19+, 22.12+, atau ≥23 (lihat .nvmrc). Jalankan npm run setup sekali, lalu npm run dev dari folder ini. PowerShell 5: jangan pakai \"cd x && npm\"; pakai \"cd x; npm run dev\" atau buka terminal sudah di folder proyek. PORT opsional (default 5173).",
+  "scripts": {
+    "predev": "node scripts/check-node.mjs",
+    "prebuild": "node scripts/check-node.mjs",
+    "prepreview": "node scripts/check-node.mjs",
+    "setup": "npm install --prefix admin-dashboard-blueprint",
+    "dev": "npm run dev --prefix admin-dashboard-blueprint",
+    "build": "npm run build --prefix admin-dashboard-blueprint",
+    "preview": "npm run preview --prefix admin-dashboard-blueprint",
+    "lint": "npm run lint --prefix admin-dashboard-blueprint",
+    "format": "npm run format --prefix admin-dashboard-blueprint"
+  }
+}
