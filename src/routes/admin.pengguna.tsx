@@ -21,8 +21,8 @@ export const Route = createFileRoute("/admin/pengguna")({
   component: PenggunaPage,
 });
 
-/** Selaras enum `app_rank` di database */
-const RANKS = ["cupu", "pemula", "standard", "ciamik", "ndewo"] as const;
+/** Selaras enum `app_rank` di database (total_score 0–19 beginner, 20+ bronze, …, 90+ platinum) */
+const RANKS = ["beginner", "bronze", "silver", "gold", "platinum"] as const;
 
 function PenggunaPage() {
   const navigate = useNavigate();
