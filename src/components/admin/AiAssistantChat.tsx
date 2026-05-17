@@ -5,12 +5,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { Download, Loader2, Send } from "lucide-react";
 import { chatWithAiAssistant } from "@/lib/admin-ai.functions";
+import { AI_DATA_UNAVAILABLE_REPLY } from "@/lib/ai/ai-safe";
 import type { AiPdfAttachment } from "@/lib/ai/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 
 type UiMessage = {
   id: string;
@@ -52,8 +52,15 @@ export function AiAssistantChat() {
         .map((m) => ({ role: m.role, content: m.content }));
       return sendChat({ data: { messages: payload } });
     },
-    onError: (err: Error) => {
-      toast.error(err.message || "Gagal menghubungi AI Assistant.");
+    onError: () => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: AI_DATA_UNAVAILABLE_REPLY,
+        },
+      ]);
     },
   });
 

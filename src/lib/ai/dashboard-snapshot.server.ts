@@ -1,5 +1,10 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { fetchFinanceLandingData, fetchFinancePendapatanData } from "@/lib/admin-finance.functions";
+import { safeAiCall } from "@/lib/ai/ai-safe";
+import {
+  buildOperationsSnapshotForAi,
+  type OperationsAiSnapshot,
+} from "@/lib/ai/dashboard-queries.server";
 
 const fmtIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(
@@ -9,6 +14,7 @@ const fmtIDR = (n: number) =>
 export type DashboardAiSnapshot = {
   generatedAt: string;
   timezone: string;
+  dataPartiallyUnavailable?: boolean;
   finance: {
     dataSource: string;
     totalRevenueAllTimeIdr: number;
@@ -41,27 +47,93 @@ export type DashboardAiSnapshot = {
     activeLast30Days: number;
     onboardedPct: number;
   };
+  operations: OperationsAiSnapshot;
+};
+
+const EMPTY_OPERATIONS: OperationsAiSnapshot = {
+  transactionDataSource: "tidak tersedia",
+  transactions: {
+    allTimeTotal: 0,
+    last30DaysTotal: 0,
+    last7DaysTotal: 0,
+    monthSample: { success: null, pending: null, refund: null },
+  },
+  bookings: {
+    allTimeTotal: 0,
+    last30DaysTotal: 0,
+    topBookersLast30Days: [],
+  },
+  glossary: {},
+};
+
+const EMPTY_LANDING = {
+  dataSource: "tidak tersedia",
+  totals: { allTime: 0 },
+  calendarMonth: {
+    revenue: 0,
+    revenueDeltaPct: null as number | null,
+    bookings: 0,
+    bookingsDeltaPct: null as number | null,
+  },
+  monthlyChart: [] as Array<{ label: string; revenue: number; bookings: number }>,
+};
+
+const EMPTY_PERIOD = {
+  successTotal: 0,
+  pendingTotal: 0,
+  refundTotal: 0,
+  deltaVsPreviousPct: null as number | null,
+  trend: [] as Array<{ date: string; amount: number }>,
 };
 
 export async function buildDashboardSnapshotForAi(): Promise<DashboardAiSnapshot> {
   const now = new Date();
-  const [landing, week, month, totalRes, active7, active30, onboarded] = await Promise.all([
-    fetchFinanceLandingData(),
-    fetchFinancePendapatanData("week"),
-    fetchFinancePendapatanData("month"),
-    supabaseAdmin.from("profiles").select("*", { count: "exact", head: true }),
-    supabaseAdmin
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .gte("updated_at", new Date(now.getTime() - 7 * 86400000).toISOString()),
-    supabaseAdmin
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .gte("updated_at", new Date(now.getTime() - 30 * 86400000).toISOString()),
-    supabaseAdmin.from("profiles").select("*", { count: "exact", head: true }).eq("onboarded", true),
-  ]);
+  let dataPartiallyUnavailable = false;
 
-  if (totalRes.error) throw new Error(totalRes.error.message);
+  const landing = await safeAiCall("finance.landing", () => fetchFinanceLandingData(), EMPTY_LANDING);
+  if (landing === EMPTY_LANDING) dataPartiallyUnavailable = true;
+
+  const week = await safeAiCall("finance.week", () => fetchFinancePendapatanData("week"), EMPTY_PERIOD);
+  if (week === EMPTY_PERIOD) dataPartiallyUnavailable = true;
+
+  const month = await safeAiCall("finance.month", () => fetchFinancePendapatanData("month"), EMPTY_PERIOD);
+  if (month === EMPTY_PERIOD) dataPartiallyUnavailable = true;
+
+  const operations = await safeAiCall(
+    "operations",
+    () => buildOperationsSnapshotForAi(),
+    EMPTY_OPERATIONS,
+  );
+  if (operations === EMPTY_OPERATIONS) dataPartiallyUnavailable = true;
+
+  const totalRes = await safeAiCall(
+    "profiles.total",
+    () => supabaseAdmin.from("profiles").select("*", { count: "exact", head: true }),
+    { count: 0, error: null },
+  );
+  const active7 = await safeAiCall(
+    "profiles.active7",
+    () =>
+      supabaseAdmin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .gte("updated_at", new Date(now.getTime() - 7 * 86400000).toISOString()),
+    { count: 0, error: null },
+  );
+  const active30 = await safeAiCall(
+    "profiles.active30",
+    () =>
+      supabaseAdmin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .gte("updated_at", new Date(now.getTime() - 30 * 86400000).toISOString()),
+    { count: 0, error: null },
+  );
+  const onboarded = await safeAiCall(
+    "profiles.onboarded",
+    () => supabaseAdmin.from("profiles").select("*", { count: "exact", head: true }).eq("onboarded", true),
+    { count: 0, error: null },
+  );
 
   const totalCount = totalRes.count ?? 0;
   const onboardedCount = onboarded.count ?? 0;
@@ -69,6 +141,7 @@ export async function buildDashboardSnapshotForAi(): Promise<DashboardAiSnapshot
   return {
     generatedAt: now.toISOString(),
     timezone: "Asia/Jakarta",
+    dataPartiallyUnavailable,
     finance: {
       dataSource: landing.dataSource,
       totalRevenueAllTimeIdr: landing.totals.allTime,
@@ -105,6 +178,7 @@ export async function buildDashboardSnapshotForAi(): Promise<DashboardAiSnapshot
       activeLast30Days: active30.count ?? 0,
       onboardedPct: totalCount ? Math.round((onboardedCount / totalCount) * 100) : 0,
     },
+    operations,
   };
 }
 

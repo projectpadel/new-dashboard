@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSuperadminAuth } from "@/lib/admin-superadmin-middleware";
+import { AI_DATA_UNAVAILABLE_REPLY } from "@/lib/ai/ai-safe";
 import { runAiAssistantChat, type AiChatMessage } from "@/lib/ai/openai-chat.server";
 
 const messageSchema = z.object({
@@ -21,5 +22,9 @@ export const chatWithAiAssistant = createServerFn({ method: "POST" })
     if (last.role !== "user") {
       throw new Error("Pesan terakhir harus dari pengguna.");
     }
-    return runAiAssistantChat(messages);
+    try {
+      return await runAiAssistantChat(messages);
+    } catch {
+      return { reply: AI_DATA_UNAVAILABLE_REPLY, attachments: [] };
+    }
   });
