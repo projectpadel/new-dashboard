@@ -25,12 +25,21 @@ export default defineConfig(async ({ command, mode }): Promise<UserConfig> => {
     tanstackStart(
       mergeConfig(tanstackStartDefaults, {
         server: { entry: "server" },
+        // Shell HTML + Netlify _redirects → client-side routing on static CDN.
+        spa: {
+          enabled: true,
+          prerender: {
+            outputPath: "/index.html",
+          },
+        },
       }),
     ),
     viteReact(),
   ];
 
-  if (command === "build") {
+  // Cloudflare worker output (index.js) breaks TanStack SPA prerender (expects server.js).
+  // Opt in with CLOUDFLARE=1 for Wrangler deploys; default build targets Netlify static + _redirects.
+  if (command === "build" && process.env.CLOUDFLARE === "1") {
     try {
       const { cloudflare } = await import("@cloudflare/vite-plugin");
       plugins.push(
