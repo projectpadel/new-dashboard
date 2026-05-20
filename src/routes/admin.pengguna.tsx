@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -7,6 +7,7 @@ import { KpiCard } from "@/components/admin/KpiCard";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 import {
   Select,
   SelectContent,
@@ -14,41 +15,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { getUsersOverview } from "@/lib/admin-users.functions";
 
 export const Route = createFileRoute("/admin/pengguna")({
   component: PenggunaPage,
 });
 
-/** Selaras enum `app_rank` di database (total_score 0–19 beginner, 20+ bronze, …, 90+ platinum) */
-const RANKS = ["beginner", "bronze", "silver", "gold", "platinum"] as const;
+const RANKS = ["cupu", "pemula", "standard", "ciamik", "ndewo"] as const;
 
 function PenggunaPage() {
-  const navigate = useNavigate();
   const fetchUsers = useServerFn(getUsersOverview);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState<string>("all");
   const [rank, setRank] = useState<string>("all");
-  const [minCoins, setMinCoins] = useState("");
-  const [maxCoins, setMaxCoins] = useState("");
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin", "users", search, role, rank, minCoins, maxCoins],
+    queryKey: ["admin", "users", search, role, rank],
     queryFn: () =>
       fetchUsers({
         data: {
           search: search || undefined,
           role: role === "all" ? undefined : role,
           rank: rank === "all" ? undefined : rank,
-          minCoins: (() => {
-            const v = minCoins.trim() ? parseInt(minCoins, 10) : NaN;
-            return Number.isFinite(v) ? v : undefined;
-          })(),
-          maxCoins: (() => {
-            const v = maxCoins.trim() ? parseInt(maxCoins, 10) : NaN;
-            return Number.isFinite(v) ? v : undefined;
-          })(),
         },
       }),
   });
@@ -58,7 +53,7 @@ function PenggunaPage() {
       <header>
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Pengguna</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Pantau seluruh user dan kesehatan komunitas. Klik baris untuk ringkasan aktivitas.
+          Pantau seluruh user dan kesehatan komunitas. Klik baris untuk melihat detail.
         </p>
       </header>
 
@@ -106,31 +101,6 @@ function PenggunaPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              type="number"
-              placeholder="Min coins"
-              className="w-28"
-              value={minCoins}
-              onChange={(e) => setMinCoins(e.target.value)}
-            />
-            <Input
-              type="number"
-              placeholder="Max coins"
-              className="w-28"
-              value={maxCoins}
-              onChange={(e) => setMaxCoins(e.target.value)}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setMinCoins("");
-                setMaxCoins("");
-              }}
-            >
-              Reset coins
-            </Button>
           </div>
         </div>
 
@@ -141,11 +111,8 @@ function PenggunaPage() {
                 <th className="px-5 py-3 font-medium">Nama</th>
                 <th className="px-5 py-3 font-medium">Email</th>
                 <th className="px-5 py-3 font-medium">Rank</th>
-                <th className="px-5 py-3 font-medium">Role</th>
-                <th className="px-5 py-3 font-medium text-right">Coins</th>
-                <th className="px-5 py-3 font-medium">Last Active</th>
+                <th className="px-5 py-3 font-medium">Membership</th>
                 <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium">Instruktur</th>
               </tr>
             </thead>
             <tbody>
@@ -153,9 +120,7 @@ function PenggunaPage() {
                 <tr
                   key={u.id}
                   className="border-t hover:bg-muted/30 cursor-pointer"
-                  onClick={() =>
-                    navigate({ to: "/admin/pengguna/$userId", params: { userId: u.user_id } })
-                  }
+                  onClick={() => setSelectedUser(u)}
                 >
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
@@ -174,29 +139,20 @@ function PenggunaPage() {
                     <Badge variant="outline">{u.rank ?? "—"}</Badge>
                   </td>
                   <td className="px-5 py-3">
-                    <Badge variant={u.role === "superadmin" || u.role === "admin" ? "default" : "secondary"}>
-                      {u.role}
+                    <Badge variant={u.membership_tier === "gold" ? "default" : "secondary"}>
+                      {u.membership_tier ?? "basic"}
                     </Badge>
                   </td>
-                  <td className="px-5 py-3 text-right tabular-nums">{u.coins.toLocaleString("id-ID")}</td>
-                  <td className="px-5 py-3 text-muted-foreground text-xs">
-                    {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString("id-ID") : "—"}
-                  </td>
                   <td className="px-5 py-3">
-                    <Badge variant={u.onboarded ? "default" : "outline"}>{u.onboarded ? "active" : "pending"}</Badge>
-                  </td>
-                  <td className="px-5 py-3">
-                    {u.isInstructor ? (
-                      <Badge variant="default">Ya</Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
+                    <Badge variant={u.onboarded ? "default" : "outline"}>
+                      {u.onboarded ? "active" : "pending"}
+                    </Badge>
                   </td>
                 </tr>
               ))}
               {!isLoading && (data?.users ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-8 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">
                     Tidak ada user yang cocok.
                   </td>
                 </tr>
@@ -205,6 +161,76 @@ function PenggunaPage() {
           </table>
         </div>
       </section>
+
+      <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <DialogContent className="sm:max-w-md">
+          {selectedUser && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Detail Pengguna</DialogTitle>
+              </DialogHeader>
+              <UserDetailCard user={selectedUser} />
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+type UserRow = NonNullable<Awaited<ReturnType<typeof getUsersOverview>>["users"]>[number];
+
+function UserDetailCard({ user: u }: { user: UserRow }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <Avatar className="h-14 w-14">
+          <AvatarImage src={u.avatar_url ?? undefined} />
+          <AvatarFallback className="text-lg">{(u.display_name ?? "U").slice(0, 2).toUpperCase()}</AvatarFallback>
+        </Avatar>
+        <div>
+          <div className="font-semibold text-base">{u.display_name ?? "—"}</div>
+          {u.username && <div className="text-sm text-muted-foreground">@{u.username}</div>}
+          <div className="text-sm text-muted-foreground">{u.email ?? "—"}</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <DetailItem label="Role" value={u.role} />
+        <DetailItem label="Rank" value={u.rank ?? "—"} />
+        <DetailItem label="Membership Tier" value={u.membership_tier ?? "basic"} />
+        <DetailItem label="Coins" value={u.coins.toLocaleString("id-ID")} />
+        <DetailItem label="Last Active" value={u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString("id-ID") : "—"} />
+        <DetailItem label="Instruktur" value={u.isInstructor ? "Ya" : "Tidak"} />
+      </div>
+
+      {u.membership && (
+        <div className="border-t pt-3">
+          <div className="text-xs font-medium text-muted-foreground mb-2">Program Diikuti</div>
+          {u.membership.programNames.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {u.membership.programNames.map((name, i) => (
+                <Badge key={i} variant="outline" className="text-xs">
+                  {name}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {u.membership.total > 0 ? `${u.membership.pending} menunggu persetujuan` : "Belum mengikuti program"}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <div className="font-medium">{value}</div>
     </div>
   );
 }

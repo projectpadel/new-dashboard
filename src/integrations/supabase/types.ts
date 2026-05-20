@@ -486,6 +486,7 @@ export type Database = {
           gender: string | null
           id: string
           matches_completed: number
+          membership_tier: string
           onboarded: boolean
           play_frequency: string | null
           programs_completed: number
@@ -511,6 +512,7 @@ export type Database = {
           gender?: string | null
           id?: string
           matches_completed?: number
+          membership_tier?: string
           onboarded?: boolean
           play_frequency?: string | null
           programs_completed?: number
@@ -536,6 +538,7 @@ export type Database = {
           gender?: string | null
           id?: string
           matches_completed?: number
+          membership_tier?: string
           onboarded?: boolean
           play_frequency?: string | null
           programs_completed?: number

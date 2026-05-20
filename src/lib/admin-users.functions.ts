@@ -35,7 +35,7 @@ export const getUsersOverview = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("profiles")
       .select(
-        "id, user_id, display_name, username, avatar_url, role, rank, coins, onboarded, updated_at, created_at, email",
+        "id, user_id, display_name, username, avatar_url, role, rank, coins, onboarded, updated_at, created_at, email, membership_tier",
       )
       .order("updated_at", { ascending: false })
       .limit(limit);
@@ -54,7 +54,7 @@ export const getUsersOverview = createServerFn({ method: "POST" })
       let q2 = supabaseAdmin
         .from("profiles")
         .select(
-          "id, user_id, display_name, username, avatar_url, role, rank, coins, onboarded, updated_at, created_at",
+          "id, user_id, display_name, username, avatar_url, role, rank, coins, onboarded, updated_at, created_at, membership_tier",
         )
         .order("updated_at", { ascending: false })
         .limit(limit);
@@ -100,18 +100,37 @@ export const getUsersOverview = createServerFn({ method: "POST" })
       updated_at: string;
       created_at: string;
       email?: string | null;
+      membership_tier?: string;
     };
     const profiles = (list.data ?? []) as ProfileRow[];
     const userIds = profiles.map((p) => p.user_id);
 
     const instructorUserIds = new Set<string>();
+    const membershipByUser = new Map<string, { total: number; approved: number; pending: number; programNames: string[] }>();
     if (userIds.length) {
-      const { data: instructorRows, error: instErr } = await supabaseAdmin
-        .from("instructors")
-        .select("user_id")
-        .in("user_id", userIds);
+      const [{ data: instructorRows, error: instErr }, { data: ppRows }] = await Promise.all([
+        supabaseAdmin.from("instructors").select("user_id").in("user_id", userIds),
+        supabaseAdmin.from("program_participants").select("user_id, program_id, membership_status").in("user_id", userIds),
+      ]);
       if (instErr) throw new Error(instErr.message);
       (instructorRows ?? []).forEach((r: { user_id: string }) => instructorUserIds.add(r.user_id));
+
+      const programIds = [...new Set((ppRows ?? []).map((r: { program_id: string }) => r.program_id))];
+      const programNameMap = new Map<string, string>();
+      if (programIds.length) {
+        const { data: progs } = await supabaseAdmin.from("programs").select("id, name").in("id", programIds);
+        (progs ?? []).forEach((p: { id: string; name: string }) => programNameMap.set(p.id, p.name));
+      }
+
+      (ppRows ?? []).forEach((r: { user_id: string; program_id: string; membership_status: string }) => {
+        const cur = membershipByUser.get(r.user_id) ?? { total: 0, approved: 0, pending: 0, programNames: [] };
+        cur.total++;
+        if (r.membership_status === "approved") cur.approved++;
+        if (r.membership_status === "pending") cur.pending++;
+        const pName = programNameMap.get(r.program_id);
+        if (pName && r.membership_status === "approved") cur.programNames.push(pName);
+        membershipByUser.set(r.user_id, cur);
+      });
     }
 
     const authMeta = await fetchAuthMetaForUserIds(userIds);
@@ -128,11 +147,13 @@ export const getUsersOverview = createServerFn({ method: "POST" })
       },
       users: profiles.map((p) => {
         const fromAuth = authMeta.get(p.user_id);
+        const membership = membershipByUser.get(p.user_id) ?? null;
         return {
           ...p,
           email: p.email?.trim() || fromAuth?.email || null,
           last_sign_in_at: fromAuth?.lastSignIn ?? null,
           isInstructor: instructorUserIds.has(p.user_id),
+          membership,
         };
       }),
     };
