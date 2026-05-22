@@ -66,13 +66,10 @@ function LoginPage() {
         data: { email: email.trim().toLowerCase(), password },
       });
 
-      const sessionPayload: { access_token: string; refresh_token?: string } = {
+      const { error: sessionError } = await supabase.auth.setSession({
         access_token: result.access_token,
-      };
-      if (result.refresh_token) {
-        sessionPayload.refresh_token = result.refresh_token;
-      }
-      const { error: sessionError } = await supabase.auth.setSession(sessionPayload);
+        refresh_token: result.refresh_token ?? "",
+      });
       if (sessionError) {
         setError(sessionError.message);
         return;

@@ -87,21 +87,32 @@ export default defineConfig(async ({ command, mode }): Promise<UserConfig> => {
     },
     plugins,
     server: {
-      // `true` = dengarkan semua interface, lebih kompatibel di Windows daripada "::" (IPv6-only / HMR).
-      host: true,
-      // 5173 default Vite; hindari bentrok umum di 8080. Jika sibuk, Vite naik ke port berikutnya.
-      port: Number(process.env.PORT) || 5173,
-      strictPort: false,
+      // localhost lebih cepat di Windows daripada host:true (enumerasi interface).
+      host: process.env.VITE_HOST || "localhost",
+      port: Number(process.env.PORT) || 5174,
+      strictPort: true,
+      fs: {
+        deny: [".netlify", ".wrangler", ".output", "dist"],
+      },
     },
   };
 
+  // Abaikan artefak build/cache — terutama `.netlify` (ribuan file) agar `vite dev` tidak
+  // macet menit-an di Windows. awaitWriteFinish (dulu untuk Lovable) juga memperlambat cold start.
   config = mergeConfig(config, {
     server: {
       watch: {
-        awaitWriteFinish: {
-          stabilityThreshold: 1000,
-          pollInterval: 100,
-        },
+        ignored: [
+          "**/node_modules/**",
+          "**/dist/**",
+          "**/.netlify/**",
+          "**/.lovable/**",
+          "**/.git/**",
+          "**/.wrangler/**",
+          "**/.tanstack/**",
+          "**/.output/**",
+          "**/supabase/.temp/**",
+        ],
       },
     },
   });

@@ -27,6 +27,7 @@ import { Route as AdminReservasiIndexRouteImport } from './routes/admin.reservas
 import { Route as AdminKeuanganIndexRouteImport } from './routes/admin.keuangan.index'
 import { Route as AdminReservasiDetailRouteImport } from './routes/admin.reservasi.detail'
 import { Route as AdminPenggunaUserIdRouteImport } from './routes/admin.pengguna.$userId'
+import { Route as AdminKeuanganTransaksiRouteImport } from './routes/admin.keuangan.transaksi'
 import { Route as AdminKeuanganReservasiRouteImport } from './routes/admin.keuangan.reservasi'
 import { Route as AdminKeuanganPendapatanRouteImport } from './routes/admin.keuangan.pendapatan'
 import { Route as AdminKeuanganOkupansiRouteImport } from './routes/admin.keuangan.okupansi'
@@ -121,6 +122,11 @@ const AdminPenggunaUserIdRoute = AdminPenggunaUserIdRouteImport.update({
   path: '/$userId',
   getParentRoute: () => AdminPenggunaRoute,
 } as any)
+const AdminKeuanganTransaksiRoute = AdminKeuanganTransaksiRouteImport.update({
+  id: '/transaksi',
+  path: '/transaksi',
+  getParentRoute: () => AdminKeuanganRoute,
+} as any)
 const AdminKeuanganReservasiRoute = AdminKeuanganReservasiRouteImport.update({
   id: '/reservasi',
   path: '/reservasi',
@@ -155,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/admin/keuangan/okupansi': typeof AdminKeuanganOkupansiRoute
   '/admin/keuangan/pendapatan': typeof AdminKeuanganPendapatanRoute
   '/admin/keuangan/reservasi': typeof AdminKeuanganReservasiRoute
+  '/admin/keuangan/transaksi': typeof AdminKeuanganTransaksiRoute
   '/admin/pengguna/$userId': typeof AdminPenggunaUserIdRoute
   '/admin/reservasi/detail': typeof AdminReservasiDetailRoute
   '/admin/keuangan/': typeof AdminKeuanganIndexRoute
@@ -175,6 +182,7 @@ export interface FileRoutesByTo {
   '/admin/keuangan/okupansi': typeof AdminKeuanganOkupansiRoute
   '/admin/keuangan/pendapatan': typeof AdminKeuanganPendapatanRoute
   '/admin/keuangan/reservasi': typeof AdminKeuanganReservasiRoute
+  '/admin/keuangan/transaksi': typeof AdminKeuanganTransaksiRoute
   '/admin/pengguna/$userId': typeof AdminPenggunaUserIdRoute
   '/admin/reservasi/detail': typeof AdminReservasiDetailRoute
   '/admin/keuangan': typeof AdminKeuanganIndexRoute
@@ -199,6 +207,7 @@ export interface FileRoutesById {
   '/admin/keuangan/okupansi': typeof AdminKeuanganOkupansiRoute
   '/admin/keuangan/pendapatan': typeof AdminKeuanganPendapatanRoute
   '/admin/keuangan/reservasi': typeof AdminKeuanganReservasiRoute
+  '/admin/keuangan/transaksi': typeof AdminKeuanganTransaksiRoute
   '/admin/pengguna/$userId': typeof AdminPenggunaUserIdRoute
   '/admin/reservasi/detail': typeof AdminReservasiDetailRoute
   '/admin/keuangan/': typeof AdminKeuanganIndexRoute
@@ -224,6 +233,7 @@ export interface FileRouteTypes {
     | '/admin/keuangan/okupansi'
     | '/admin/keuangan/pendapatan'
     | '/admin/keuangan/reservasi'
+    | '/admin/keuangan/transaksi'
     | '/admin/pengguna/$userId'
     | '/admin/reservasi/detail'
     | '/admin/keuangan/'
@@ -244,6 +254,7 @@ export interface FileRouteTypes {
     | '/admin/keuangan/okupansi'
     | '/admin/keuangan/pendapatan'
     | '/admin/keuangan/reservasi'
+    | '/admin/keuangan/transaksi'
     | '/admin/pengguna/$userId'
     | '/admin/reservasi/detail'
     | '/admin/keuangan'
@@ -267,6 +278,7 @@ export interface FileRouteTypes {
     | '/admin/keuangan/okupansi'
     | '/admin/keuangan/pendapatan'
     | '/admin/keuangan/reservasi'
+    | '/admin/keuangan/transaksi'
     | '/admin/pengguna/$userId'
     | '/admin/reservasi/detail'
     | '/admin/keuangan/'
@@ -407,6 +419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPenggunaUserIdRouteImport
       parentRoute: typeof AdminPenggunaRoute
     }
+    '/admin/keuangan/transaksi': {
+      id: '/admin/keuangan/transaksi'
+      path: '/transaksi'
+      fullPath: '/admin/keuangan/transaksi'
+      preLoaderRoute: typeof AdminKeuanganTransaksiRouteImport
+      parentRoute: typeof AdminKeuanganRoute
+    }
     '/admin/keuangan/reservasi': {
       id: '/admin/keuangan/reservasi'
       path: '/reservasi'
@@ -435,6 +454,7 @@ interface AdminKeuanganRouteChildren {
   AdminKeuanganOkupansiRoute: typeof AdminKeuanganOkupansiRoute
   AdminKeuanganPendapatanRoute: typeof AdminKeuanganPendapatanRoute
   AdminKeuanganReservasiRoute: typeof AdminKeuanganReservasiRoute
+  AdminKeuanganTransaksiRoute: typeof AdminKeuanganTransaksiRoute
   AdminKeuanganIndexRoute: typeof AdminKeuanganIndexRoute
 }
 
@@ -442,6 +462,7 @@ const AdminKeuanganRouteChildren: AdminKeuanganRouteChildren = {
   AdminKeuanganOkupansiRoute: AdminKeuanganOkupansiRoute,
   AdminKeuanganPendapatanRoute: AdminKeuanganPendapatanRoute,
   AdminKeuanganReservasiRoute: AdminKeuanganReservasiRoute,
+  AdminKeuanganTransaksiRoute: AdminKeuanganTransaksiRoute,
   AdminKeuanganIndexRoute: AdminKeuanganIndexRoute,
 }
 

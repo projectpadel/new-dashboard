@@ -1,6 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSuperadminAuth } from "@/lib/admin-superadmin-middleware";
+import {
+  isPatunganMatchReference,
+  normalizeTransactionReferenceType,
+  referenceTypeForKategori,
+  TX_REF_COURT_BOOKING_MATCH,
+  TX_REF_COURT_BOOKING_PROGRAM,
+  TX_REF_PATUNGAN_MATCH,
+  TX_REF_PATUNGAN_PROGRAM,
+} from "@/lib/finance-reference-types";
+import type { FinanceTransactionsFilterInput } from "@/lib/finance-reference-types";
+
+export type { FinanceTransactionsFilterInput } from "@/lib/finance-reference-types";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -104,7 +116,7 @@ async function fetchPaginated<T extends Record<string, unknown>>(
   buildQuery: (
     from: number,
     to: number,
-  ) => Promise<{ data: T[] | null; error: { message: string } | null }>,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<T[]> {
   const out: T[] = [];
   for (let page = 0; page < maxPages; page++) {
@@ -342,69 +354,300 @@ function hintReferenceFromTransaksi(r: TransaksiDbRow): {
   reference_type: string | null;
   reference_id: string | null;
 } {
+  const kategori = "kategori" in r ? (r as { kategori?: string | null }).kategori : null;
+  const fromKategori = referenceTypeForKategori(kategori);
+  if (fromKategori && r.reference_id) {
+    return { reference_type: fromKategori, reference_id: r.reference_id };
+  }
   const booking = bookingReferenceFromTransaksi(r);
   if (booking) return { reference_type: "court_booking", reference_id: booking };
-  if (r.program_id) return { reference_type: "program", reference_id: r.program_id };
-  if (r.match_id) return { reference_type: "match", reference_id: r.match_id };
-  if (r.reference_id && r.reference_type)
-    return { reference_type: r.reference_type, reference_id: r.reference_id };
+  if (r.program_id) {
+    return {
+      reference_type: fromKategori ?? referenceTypeForKategori(kategori) ?? TX_REF_PATUNGAN_PROGRAM,
+      reference_id: r.program_id,
+    };
+  }
+  const matchId = "match_id" in r ? (r as { match_id?: string | null }).match_id : null;
+  if (matchId) {
+    return {
+      reference_type: fromKategori ?? TX_REF_PATUNGAN_MATCH,
+      reference_id: matchId,
+    };
+  }
+  if (r.reference_id && r.reference_type) {
+    return {
+      reference_type: normalizeTransactionReferenceType(r.reference_type, { matchId, kategori }),
+      reference_id: r.reference_id,
+    };
+  }
+  if (r.reference_id && isPatunganMatchReference(r.reference_type)) {
+    return { reference_type: TX_REF_PATUNGAN_MATCH, reference_id: r.reference_id };
+  }
+  if (r.reference_id && fromKategori === TX_REF_COURT_BOOKING_MATCH) {
+    return { reference_type: TX_REF_COURT_BOOKING_MATCH, reference_id: r.reference_id };
+  }
+  if (r.reference_id && fromKategori === TX_REF_PATUNGAN_PROGRAM) {
+    return { reference_type: TX_REF_PATUNGAN_PROGRAM, reference_id: r.reference_id };
+  }
+  if (r.reference_id && fromKategori === TX_REF_COURT_BOOKING_PROGRAM) {
+    return { reference_type: TX_REF_COURT_BOOKING_PROGRAM, reference_id: r.reference_id };
+  }
   return { reference_type: null, reference_id: null };
 }
 
-async function fetchFinanceRecent20(source: FinanceTxnTable): Promise<FinanceRecentRow[]> {
+const TX_LIST_PAGE_SIZE = 20;
+const TX_EXPORT_MAX_ROWS = 5000;
+
+/** Status mentah di DB untuk agregasi count (selaras normalizedTxnStatus). */
+const TX_DB_STATUS_SUCCESS = [
+  "success",
+  "succeeded",
+  "completed",
+  "paid",
+  "settled",
+  "payout",
+] as const;
+const TX_DB_STATUS_PENDING = [
+  "pending",
+  "processing",
+  "waiting",
+  "waiting_payment",
+] as const;
+const TX_DB_STATUS_REFUND = ["refund", "refunded", "reversed"] as const;
+
+export type FinanceTransactionsCursor = {
+  cursorCreatedAt: string;
+  cursorId: string;
+};
+
+function hasFinanceTransactionsFilters(filters?: FinanceTransactionsFilterInput): boolean {
+  if (!filters) return false;
+  return Boolean(
+    filters.dateFrom ||
+      filters.dateTo ||
+      filters.referenceType ||
+      filters.statusBucket ||
+      filters.amountMin != null ||
+      filters.amountMax != null,
+  );
+}
+
+function jakartaDayStartIso(ymd: string): string {
+  return new Date(`${ymd}T00:00:00+07:00`).toISOString();
+}
+
+function jakartaDayEndIso(ymd: string): string {
+  return new Date(`${ymd}T23:59:59.999+07:00`).toISOString();
+}
+
+type TxListFilterableQuery = {
+  gte: (column: string, value: string | number) => TxListFilterableQuery;
+  lte: (column: string, value: string | number) => TxListFilterableQuery;
+  eq: (column: string, value: string) => TxListFilterableQuery;
+  in: (column: string, values: readonly string[]) => TxListFilterableQuery;
+  or: (filters: string) => TxListFilterableQuery;
+};
+
+function applyFinanceTransactionsFilters<Q extends TxListFilterableQuery>(
+  q: Q,
+  source: FinanceTxnTable,
+  filters?: FinanceTransactionsFilterInput,
+): Q {
+  if (!filters) return q;
+  let query = q;
+  if (filters.dateFrom) {
+    query = query.gte("created_at", jakartaDayStartIso(filters.dateFrom)) as Q;
+  }
+  if (filters.dateTo) {
+    query = query.lte("created_at", jakartaDayEndIso(filters.dateTo)) as Q;
+  }
+  if (filters.referenceType?.trim()) {
+    query = query.eq("reference_type", filters.referenceType.trim()) as Q;
+  }
+  if (filters.statusBucket === "success") {
+    query = query.in("status", [...TX_DB_STATUS_SUCCESS]) as Q;
+  } else if (filters.statusBucket === "pending") {
+    query = query.in("status", [...TX_DB_STATUS_PENDING]) as Q;
+  } else if (filters.statusBucket === "refund") {
+    if (source === "payment_ledger") {
+      query = query.or(
+        `status.in.(${TX_DB_STATUS_REFUND.join(",")}),kind.ilike.%refund%`,
+      ) as Q;
+    } else {
+      query = query.in("status", [...TX_DB_STATUS_REFUND]) as Q;
+    }
+  }
+  if (filters.amountMin != null && !Number.isNaN(filters.amountMin)) {
+    query = query.gte("amount_idr", filters.amountMin) as Q;
+  }
+  if (filters.amountMax != null && !Number.isNaN(filters.amountMax)) {
+    query = query.lte("amount_idr", filters.amountMax) as Q;
+  }
+  return query;
+}
+
+function mapTransaksiToRecentRow(r: TransaksiDbRow): FinanceRecentRow {
+  const { reference_type: rt, reference_id: rid } = hintReferenceFromTransaksi(r);
+  return {
+    id: r.id,
+    created_at: r.created_at,
+    amount_idr: Number(r.amount_idr ?? 0),
+    status: r.status,
+    reference_type: rt,
+    reference_id: rid,
+    ledger_kind: null,
+  };
+}
+
+function applyTxListCursor<T extends { or: (filter: string) => T }>(
+  q: T,
+  cursor?: FinanceTransactionsCursor,
+): T {
+  if (!cursor) return q;
+  return q.or(
+    `created_at.lt.${cursor.cursorCreatedAt},and(created_at.eq.${cursor.cursorCreatedAt},id.lt.${cursor.cursorId})`,
+  );
+}
+
+async function countFinanceTransactions(
+  source: FinanceTxnTable,
+  bucket: "all" | "success" | "pending" | "refund",
+): Promise<number> {
+  let q = supabaseAdmin.from(source).select("id", { count: "exact", head: true });
+  if (bucket === "success") q = q.in("status", [...TX_DB_STATUS_SUCCESS]);
+  else if (bucket === "pending") q = q.in("status", [...TX_DB_STATUS_PENDING]);
+  else if (bucket === "refund") {
+    if (source === "payment_ledger") {
+      q = q.or(
+        `status.in.(${TX_DB_STATUS_REFUND.join(",")}),kind.ilike.%refund%`,
+      );
+    } else {
+      q = q.in("status", [...TX_DB_STATUS_REFUND]);
+    }
+  }
+  const { count, error } = await q;
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+async function fetchFinanceTransactionsPage(
+  source: FinanceTxnTable,
+  cursor?: FinanceTransactionsCursor,
+  filters?: FinanceTransactionsFilterInput,
+): Promise<{ rows: FinanceRecentRow[]; nextCursor: FinanceTransactionsCursor | null }> {
+  const limit = TX_LIST_PAGE_SIZE + 1;
+
   if (source === "transaksi") {
-    const { data, error } = await supabaseAdmin
+    let q = supabaseAdmin
       .from("transaksi")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(20);
+      .order("id", { ascending: false })
+      .limit(limit);
+    q = applyFinanceTransactionsFilters(q, source, filters);
+    q = applyTxListCursor(q, cursor);
+    const { data, error } = await q;
     if (error) throw new Error(error.message);
-    return ((data ?? []) as TransaksiDbRow[]).map((r) => {
-      const { reference_type: rt, reference_id: rid } = hintReferenceFromTransaksi(r);
-      return {
-        id: r.id,
-        created_at: r.created_at,
-        amount_idr: Number(r.amount_idr ?? 0),
-        status: r.status,
-        reference_type: rt,
-        reference_id: rid,
-        ledger_kind: null,
-      };
-    });
+    const raw = (data ?? []) as TransaksiDbRow[];
+    const hasMore = raw.length > TX_LIST_PAGE_SIZE;
+    const page = raw.slice(0, TX_LIST_PAGE_SIZE);
+    const last = page[page.length - 1];
+    return {
+      rows: page.map(mapTransaksiToRecentRow),
+      nextCursor:
+        hasMore && last
+          ? { cursorCreatedAt: last.created_at, cursorId: last.id }
+          : null,
+    };
   }
 
   if (source === "transactions") {
-    const { data, error } = await supabaseAdmin
+    let q = supabaseAdmin
       .from("transactions")
       .select("id, status, amount_idr, created_at, reference_type, reference_id")
       .order("created_at", { ascending: false })
-      .limit(20);
+      .order("id", { ascending: false })
+      .limit(limit);
+    q = applyFinanceTransactionsFilters(q, source, filters);
+    q = applyTxListCursor(q, cursor);
+    const { data, error } = await q;
     if (error) throw new Error(error.message);
-    return (data ?? []).map((r) => ({
+    const raw = data ?? [];
+    const hasMore = raw.length > TX_LIST_PAGE_SIZE;
+    const page = raw.slice(0, TX_LIST_PAGE_SIZE);
+    const last = page[page.length - 1];
+    return {
+      rows: page.map((r) => ({
+        id: r.id,
+        status: r.status,
+        amount_idr: Number(r.amount_idr),
+        created_at: r.created_at,
+        reference_type: r.reference_type,
+        reference_id: r.reference_id,
+        ledger_kind: null,
+      })),
+      nextCursor:
+        hasMore && last
+          ? { cursorCreatedAt: last.created_at, cursorId: last.id }
+          : null,
+    };
+  }
+
+  let q = supabaseAdmin
+    .from("payment_ledger")
+    .select("id, kind, status, amount_idr, created_at, reference_type, reference_id")
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit);
+  q = applyFinanceTransactionsFilters(q, source, filters);
+  q = applyTxListCursor(q, cursor);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  const raw = data ?? [];
+  const hasMore = raw.length > TX_LIST_PAGE_SIZE;
+  const page = raw.slice(0, TX_LIST_PAGE_SIZE);
+  const last = page[page.length - 1];
+  return {
+    rows: page.map((r) => ({
       id: r.id,
-      status: r.status,
+      status: (r.kind ?? "").toLowerCase().includes("refund") ? "refund" : r.status,
       amount_idr: Number(r.amount_idr),
       created_at: r.created_at,
       reference_type: r.reference_type,
       reference_id: r.reference_id,
-      ledger_kind: null,
-    }));
+      ledger_kind: r.kind,
+    })),
+    nextCursor:
+      hasMore && last ? { cursorCreatedAt: last.created_at, cursorId: last.id } : null,
+  };
+}
+
+async function fetchAllFinanceTransactions(
+  source: FinanceTxnTable,
+  filters?: FinanceTransactionsFilterInput,
+): Promise<{ rows: FinanceRecentRow[]; truncated: boolean }> {
+  const all: FinanceRecentRow[] = [];
+  let cursor: FinanceTransactionsCursor | undefined;
+  let truncated = false;
+
+  while (all.length < TX_EXPORT_MAX_ROWS) {
+    const { rows, nextCursor } = await fetchFinanceTransactionsPage(source, cursor, filters);
+    const remaining = TX_EXPORT_MAX_ROWS - all.length;
+    if (rows.length > remaining) {
+      all.push(...rows.slice(0, remaining));
+      truncated = true;
+      break;
+    }
+    all.push(...rows);
+    if (!nextCursor) break;
+    if (all.length >= TX_EXPORT_MAX_ROWS) {
+      truncated = true;
+      break;
+    }
+    cursor = nextCursor;
   }
-  const { data, error } = await supabaseAdmin
-    .from("payment_ledger")
-    .select("id, kind, status, amount_idr, created_at, reference_type, reference_id")
-    .order("created_at", { ascending: false })
-    .limit(20);
-  if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    status: (r.kind ?? "").toLowerCase().includes("refund") ? "refund" : r.status,
-    amount_idr: Number(r.amount_idr),
-    created_at: r.created_at,
-    reference_type: r.reference_type,
-    reference_id: r.reference_id,
-    ledger_kind: r.kind,
-  }));
+
+  return { rows: all, truncated };
 }
 
 async function fetchCourtNumbersByBookingIds(ids: string[]): Promise<Map<string, number[]>> {
@@ -515,13 +758,12 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
 
     const txnSource = await resolveFinanceTxnSource();
 
-    const [txAll, tx7, tx30, txPrev30, tx30Rows, recent] = await Promise.all([
+    const [txAll, tx7, tx30, txPrev30, tx30Rows] = await Promise.all([
       fetchFinanceTxRows(undefined, txnSource),
       fetchFinanceTxRows({ createdFrom: d7, createdTo: endIso }, txnSource),
       fetchFinanceTxRows({ createdFrom: d30, createdTo: endIso }, txnSource),
       fetchFinanceTxRows({ createdFrom: d60, createdToExclusive: d30 }, txnSource),
       fetchFinanceTxRows({ createdFrom: d30, createdTo: endIso }, txnSource),
-      fetchFinanceRecent20(txnSource),
     ]);
 
     const kindMap = new Map<string, number>();
@@ -560,7 +802,76 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       },
       byKind: Array.from(kindMap.entries()).map(([kind, amount]) => ({ kind, amount })),
       trend,
-      recent,
+    };
+  });
+
+const transactionsFiltersSchema = z
+  .object({
+    dateFrom: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    dateTo: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    referenceType: z.string().min(1).optional(),
+    statusBucket: z.enum(["success", "pending", "refund"]).optional(),
+    amountMin: z.coerce.number().finite().nonnegative().optional(),
+    amountMax: z.coerce.number().finite().nonnegative().optional(),
+  })
+  .optional();
+
+const transactionsPageSchema = z.object({
+  cursorCreatedAt: z.string().optional(),
+  cursorId: z.string().uuid().optional(),
+  filters: transactionsFiltersSchema,
+});
+
+export const getFinanceTransactionsSummary = createServerFn({ method: "GET" })
+  .middleware([requireSuperadminAuth])
+  .handler(async () => {
+    const dataSource = await resolveFinanceTxnSource();
+    const [total, pending, success, refund] = await Promise.all([
+      countFinanceTransactions(dataSource, "all"),
+      countFinanceTransactions(dataSource, "pending"),
+      countFinanceTransactions(dataSource, "success"),
+      countFinanceTransactions(dataSource, "refund"),
+    ]);
+    return { dataSource, total, pending, success, refund };
+  });
+
+export const getFinanceTransactionsPage = createServerFn({ method: "POST" })
+  .middleware([requireSuperadminAuth])
+  .inputValidator((input) => transactionsPageSchema.parse(input ?? {}))
+  .handler(async ({ data }) => {
+    const dataSource = await resolveFinanceTxnSource();
+    const cursor =
+      data.cursorCreatedAt && data.cursorId
+        ? { cursorCreatedAt: data.cursorCreatedAt, cursorId: data.cursorId }
+        : undefined;
+    const filters = hasFinanceTransactionsFilters(data.filters) ? data.filters : undefined;
+    const { rows, nextCursor } = await fetchFinanceTransactionsPage(dataSource, cursor, filters);
+    return { dataSource, rows, nextCursor, filtered: Boolean(filters) };
+  });
+
+export const downloadFinanceTransactionsPdf = createServerFn({ method: "POST" })
+  .middleware([requireSuperadminAuth])
+  .inputValidator((input) => transactionsFiltersSchema.parse(input ?? {}))
+  .handler(async ({ data }) => {
+    const { buildTransactionsListPdf } = await import("@/lib/finance-transactions-pdf.server");
+    const dataSource = await resolveFinanceTxnSource();
+    const filters = hasFinanceTransactionsFilters(data) ? data : undefined;
+    const { rows, truncated } = await fetchAllFinanceTransactions(dataSource, filters);
+    const { base64, filename } = await buildTransactionsListPdf(rows, filters, {
+      truncated,
+      exportCap: TX_EXPORT_MAX_ROWS,
+    });
+    return {
+      base64,
+      filename,
+      mimeType: "application/pdf" as const,
+      rowCount: rows.length,
     };
   });
 

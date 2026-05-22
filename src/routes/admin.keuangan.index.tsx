@@ -30,35 +30,16 @@ function KeuanganLanding() {
     queryFn: () => fetchLanding(),
   });
 
-  const src = data?.dataSource;
-
   const cm = data?.calendarMonth;
   const revDelta = cm?.revenueDeltaPct;
   const bookDelta = cm?.bookingsDeltaPct;
 
-  const rb = cm?.reservationBreakdown;
-
   return (
     <div className="space-y-6">
-      {src === "payment_ledger" && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-          <strong>Sumber pembayaran sementara:</strong>{" "}
-          <code className="text-xs">payment_ledger</code>. Project Anda memakai tabel{" "}
-          <code className="text-xs">transaksi</code> bila ada data di sana; migrasi bisa diabaikan untuk skema itu.
-        </div>
-      )}
-
       <section>
         <KpiCard
           title="Total pendapatan (IDR)"
           value={isLoading ? "…" : fmtIDR(data?.totals.allTime ?? 0)}
-          caption={
-            src === "transaksi"
-              ? "Akumulasi transaksi berstatus success (tabel transaksi)"
-              : src === "transactions"
-                ? "Akumulasi transaksi berstatus success (tabel transactions)"
-                : "Diambil dari payment_ledger sampai ada data utama di transaksi/transactions"
-          }
           icon={Wallet}
         />
       </section>
@@ -69,7 +50,6 @@ function KeuanganLanding() {
           value={isLoading ? "…" : fmtIDR(cm?.revenue ?? 0)}
           delta={revDelta != null ? `${revDelta >= 0 ? "Naik" : "Turun"} ${Math.abs(revDelta).toFixed(1)}%` : undefined}
           deltaTone={revDelta != null && revDelta >= 0 ? "positive" : "negative"}
-          caption="MTD bulan Jakarta vs bulan lalu (hanya transaksi success)"
           icon={TrendingUp}
         />
         <KpiCard
@@ -77,7 +57,6 @@ function KeuanganLanding() {
           value={isLoading ? "…" : String(cm?.bookings ?? 0)}
           delta={bookDelta != null ? `${bookDelta >= 0 ? "Naik" : "Turun"} ${Math.abs(bookDelta).toFixed(1)}%` : undefined}
           deltaTone={bookDelta != null && bookDelta >= 0 ? "positive" : "negative"}
-          caption={rb ? `${rb.courtBookings} booking (court_bookings, created_at)` : "court_bookings saja"}
           icon={CalendarDays}
         />
       </section>
@@ -89,7 +68,6 @@ function KeuanganLanding() {
               <BarChart3 className="h-4 w-4" />
               Pendapatan & booking per bulan
             </h2>
-            <p className="text-xs text-muted-foreground">12 bulan terakhir (kalender Jakarta)</p>
           </div>
           <Button asChild variant="default" size="sm">
             <Link to="/admin/keuangan/pendapatan">Lihat detail</Link>
@@ -109,7 +87,7 @@ function KeuanganLanding() {
               />
               <Legend />
               <Bar yAxisId="left" dataKey="revenue" name="Pendapatan IDR" fill="hsl(142 70% 35%)" radius={[4, 4, 0, 0]} />
-              <Bar yAxisId="right" dataKey="bookings" name="Reservasi (court_bookings)" fill="hsl(220 14% 46%)" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="right" dataKey="bookings" name="Reservasi" fill="hsl(220 14% 46%)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

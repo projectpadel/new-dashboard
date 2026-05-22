@@ -66,7 +66,7 @@ export const getUsersOverview = createServerFn({ method: "POST" })
       if (data.rank) q2 = q2.eq("rank", data.rank as never);
       if (data.minCoins != null) q2 = q2.gte("coins", data.minCoins);
       if (data.maxCoins != null) q2 = q2.lte("coins", data.maxCoins);
-      list = await q2;
+      list = (await q2) as typeof list;
     }
 
     const [total, active7, active30, onboarded] = await Promise.all([

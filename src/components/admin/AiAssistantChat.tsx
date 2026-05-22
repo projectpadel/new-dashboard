@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Download, Loader2, Send } from "lucide-react";
-import { chatWithAiAssistant } from "@/lib/admin-ai.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { AI_DATA_UNAVAILABLE_REPLY } from "@/lib/ai/ai-safe";
 import type { AiPdfAttachment } from "@/lib/ai/types";
 import { Button } from "@/components/ui/button";
@@ -37,20 +38,29 @@ export function AiAssistantChat() {
     {
       id: "welcome",
       role: "assistant",
-      content:
-        "Halo! Saya AI Assistant dashboard. Saya bisa menganalisis data keuangan & pengguna, menyarankan strategi promosi, dan membuat laporan PDF keuangan mingguan/bulanan. Apa yang ingin Anda ketahui?",
+      content: "Halo, Apa yang anda butuhkan?",
     },
   ]);
   const [input, setInput] = React.useState("");
   const scrollEndRef = React.useRef<HTMLDivElement>(null);
 
-  const sendChat = useServerFn(chatWithAiAssistant);
   const mutation = useMutation({
     mutationFn: async (nextMessages: UiMessage[]) => {
       const payload = nextMessages
         .filter((m) => m.id !== "welcome")
         .map((m) => ({ role: m.role, content: m.content }));
-      return sendChat({ data: { messages: payload } });
+
+      const { data, error } = await supabase.functions.invoke("ai-assistant", {
+        body: { messages: payload },
+      });
+
+      if (error) throw error;
+      const result = data as { reply?: string; attachments?: AiPdfAttachment[]; error?: string };
+      if (result.error) throw new Error(result.error);
+      return {
+        reply: result.reply ?? AI_DATA_UNAVAILABLE_REPLY,
+        attachments: result.attachments ?? [],
+      };
     },
     onError: () => {
       setMessages((prev) => [
@@ -119,7 +129,13 @@ export function AiAssistantChat() {
                   m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted/80 text-foreground",
                 )}
               >
-                <p className="whitespace-pre-wrap">{m.content}</p>
+                {m.role === "assistant" ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-table:text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                )}
                 {m.attachments?.length ? (
                   <div className="flex flex-wrap gap-2 pt-1">
                     {m.attachments.map((att) => (
@@ -154,7 +170,7 @@ export function AiAssistantChat() {
         <Textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Tanya tentang keuangan, minta PDF, atau saran promosi…"
+          placeholder="Analisis transaksi, reservasi, user, program… atau minta PDF"
           rows={2}
           className="min-h-[52px] resize-none"
           disabled={mutation.isPending}

@@ -39,12 +39,6 @@ function KeuanganReservasiAnalitikPage() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        Angka reservasi = jumlah baris <code className="text-xs">court_bookings</code> yang{" "}
-        <code className="text-xs">created_at</code>-nya berada di periode (zona analitik sama dengan keuangan).
-        Cancel / no-show belum dipisah di skema.
-      </p>
-
       <div className="flex flex-wrap items-center justify-end gap-2">
         <span className="text-sm text-muted-foreground mr-auto">Periode</span>
         {(["week", "month", "year"] as const).map((p) => (
@@ -58,16 +52,10 @@ function KeuanganReservasiAnalitikPage() {
         <KpiCard
           title="Total reservasi (periode)"
           value={isLoading ? "…" : String(data?.totalBookings ?? 0)}
-          caption={
-            data?.reservationBreakdown
-              ? `${data.reservationBreakdown.courtBookings} booking di court_bookings`
-              : "Hanya court_bookings (created_at)"
-          }
         />
         <KpiCard
           title="Tren vs periode sebelumnya"
           value={d != null ? `${d >= 0 ? "+" : ""}${d.toFixed(1)}%` : "—"}
-          caption="Jumlah court_bookings vs periode sebelumnya"
         />
       </section>
 

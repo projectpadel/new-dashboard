@@ -79,7 +79,7 @@ export const getCourtBookingsList = createServerFn({ method: "POST" })
       from: z.string().optional(),
       to: z.string().optional(),
       court: z.number().int().optional(),
-      bookingType: z.string().max(40).optional(),
+      bookingType: z.enum(["match", "program", "program_league_match"]).optional(),
       limit: z.number().int().min(1).max(500).optional(),
     }),
   )

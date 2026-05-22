@@ -15,7 +15,11 @@ export function KeuanganSubnav() {
     <nav className="flex flex-wrap gap-2 border-b pb-3 mb-6">
       {links.map((l) => {
         const toNorm = l.to.replace(/\/$/, "");
-        const active = l.end ? norm === toNorm : norm === toNorm || norm.startsWith(`${toNorm}/`);
+        const active = l.end
+          ? norm === toNorm
+          : l.to === "/admin/keuangan/pendapatan"
+            ? norm === toNorm || norm === "/admin/keuangan/transaksi"
+            : norm === toNorm || norm.startsWith(`${toNorm}/`);
         return (
           <Link
             key={l.to}

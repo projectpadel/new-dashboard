@@ -128,7 +128,7 @@ function KeuanganOkupansiPage() {
                     key={table.dates[di]}
                     className="p-1 border text-center tabular-nums text-[10px]"
                     style={pctCellStyle(pct)}
-                    title={`Rata-rata ${table.dates[di]} (${data?.hoursLabel ?? "06:00–00:00"})`}
+                    title={table.dates[di]}
                   >
                     {pct}%
                   </td>
@@ -179,14 +179,12 @@ function KeuanganOkupansiPage() {
                       : ""}
                     {data?.weeklySnapshot?.deltaPctPoints ?? 0}%
                   </span>
-                  <span className="text-sm text-muted-foreground">poin persentase</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
                   Minggu lalu:{" "}
                   <strong className="text-foreground tabular-nums">
                     {data?.weeklySnapshot?.previousWeekAvgPct ?? 0}%
-                  </strong>{" "}
-                  ({data?.weeklySnapshot?.previousWeekLabel})
+                  </strong>
                 </p>
               </div>
             </div>

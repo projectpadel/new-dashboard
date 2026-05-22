@@ -64,7 +64,7 @@ SELECT gen_random_uuid(),
        NULL,
        m.creator_id,
        m.id::text,
-       'match',
+       'patungan_match',
        'settled',
        COALESCE(m.created_at, now()),
        now()

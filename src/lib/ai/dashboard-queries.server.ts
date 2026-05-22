@@ -1,12 +1,80 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { fetchAuthMetaForUserIds } from "@/lib/auth-user-meta.server";
+import { normalizeDateInput } from "@/lib/ai/date-parse";
+import { normalizeTransactionReferenceType } from "@/lib/finance-reference-types";
 import type { Json } from "@/integrations/supabase/types";
 
 const FINANCE_TZ = "Asia/Jakarta";
 
 type FinanceTxnTable = "transaksi" | "transactions" | "payment_ledger";
 
-export type AiPeriod = "week" | "month" | "all";
+export type AiPeriod = "week" | "month" | "all" | "custom";
+
+function parseYmd(s: string | undefined): string | undefined {
+  return normalizeDateInput(s);
+}
+
+function jakartaDayStartIso(ymd: string): string {
+  return new Date(`${ymd}T00:00:00+07:00`).toISOString();
+}
+
+function jakartaDayEndIso(ymd: string): string {
+  return new Date(`${ymd}T23:59:59.999+07:00`).toISOString();
+}
+
+function ymdFromDateInJakarta(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: FINANCE_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const [y, mo, d] = ymd.split("-").map((x) => parseInt(x, 10));
+  const t = new Date(Date.UTC(y, mo - 1, d + days));
+  return t.toISOString().slice(0, 10);
+}
+
+/** Rentang created_at transaksi (WIB). Satu tanggal → dateTo = dateFrom jika tidak diisi. */
+function resolveTransactionCreatedRange(args: {
+  period?: AiPeriod;
+  dateFrom?: string;
+  dateTo?: string;
+}): {
+  from?: string;
+  to?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  period: AiPeriod;
+} {
+  const df = parseYmd(args.dateFrom);
+  const dt = parseYmd(args.dateTo);
+  if (df || dt) {
+    const startYmd = df ?? dt!;
+    const endYmd = dt ?? df!;
+    return {
+      from: jakartaDayStartIso(startYmd),
+      to: jakartaDayEndIso(endYmd),
+      dateFrom: startYmd,
+      dateTo: endYmd,
+      period: "custom",
+    };
+  }
+  const period = args.period === "custom" ? "month" : (args.period ?? "month");
+  if (period === "all") return { period: "all" };
+  const days = period === "week" ? 7 : 30;
+  const todayYmd = ymdFromDateInJakarta(new Date());
+  const fromYmd = addDaysYmd(todayYmd, -(days - 1));
+  return {
+    from: jakartaDayStartIso(fromYmd),
+    to: jakartaDayEndIso(todayYmd),
+    dateFrom: fromYmd,
+    dateTo: todayYmd,
+    period,
+  };
+}
 
 type TxListRow = {
   id: string;
@@ -57,13 +125,20 @@ function transaksiPayerUserId(r: TransaksiDbRowLoose): string | null {
 
 function mapTransaksiRow(r: TransaksiDbRowLoose): TxListRow {
   const bookingId = transaksiBookingId(r);
+  const kategori = "kategori" in r ? (r as { kategori?: string | null }).kategori : null;
+  const refType = bookingId
+    ? "court_booking"
+    : normalizeTransactionReferenceType(r.reference_type, {
+        matchId: r.match_id ?? undefined,
+        kategori,
+      });
   return {
     id: r.id,
     amount_idr: Number(r.amount_idr ?? 0),
     status: r.status,
     created_at: r.created_at,
-    reference_id: r.reference_id ?? bookingId,
-    reference_type: bookingId ? "court_booking" : r.reference_type,
+    reference_id: r.reference_id ?? bookingId ?? r.match_id ?? null,
+    reference_type: refType,
     payer_user_id: transaksiPayerUserId(r),
     court_booking_id: bookingId,
   };
@@ -85,11 +160,8 @@ function normalizedTxnStatus(raw: string | null | undefined): "success" | "pendi
 }
 
 function periodRange(period: AiPeriod): { from?: string; to?: string } {
-  const now = new Date();
-  if (period === "all") return {};
-  const days = period === "week" ? 7 : 30;
-  const from = new Date(now.getTime() - days * 86400000).toISOString();
-  return { from, to: now.toISOString() };
+  const r = resolveTransactionCreatedRange({ period: period === "custom" ? "month" : period });
+  return { from: r.from, to: r.to };
 }
 
 /** Filter reservasi menurut booking_date (bukan created_at). */
@@ -261,24 +333,7 @@ async function fetchTransactionsList(
   });
 }
 
-async function countTransactions(source: FinanceTxnTable, from?: string, to?: string) {
-  const countFor = async (extra?: (q: ReturnType<typeof supabaseAdmin.from>) => typeof q) => {
-    let q = supabaseAdmin.from(source).select("id", { count: "exact", head: true });
-    if (from) q = q.gte("created_at", from);
-    if (to) q = q.lte("created_at", to);
-    if (extra) q = extra(q);
-    const { count, error } = await q;
-    if (error) throw new Error(error.message);
-    return count ?? 0;
-  };
-
-  const total = await countFor();
-  const sampleCap = 800;
-  const rows = await fetchTransactionsList(source, {
-    from,
-    to,
-    limit: Math.min(total, sampleCap),
-  });
+function tallyTxnStatus(rows: TxListRow[]) {
   let success = 0;
   let pending = 0;
   let refund = 0;
@@ -288,17 +343,152 @@ async function countTransactions(source: FinanceTxnTable, from?: string, to?: st
     else if (n === "refund") refund += 1;
     else pending += 1;
   }
-  if (total > rows.length) {
+  return { success, pending, refund };
+}
+
+async function countTransactions(
+  source: FinanceTxnTable,
+  from?: string,
+  to?: string,
+  opts?: { status?: "all" | "success" | "pending" | "refund" },
+) {
+  const countFor = async () => {
+    let q = supabaseAdmin.from(source).select("id", { count: "exact", head: true });
+    if (from) q = q.gte("created_at", from);
+    if (to) q = q.lte("created_at", to);
+    const { count, error } = await q;
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  };
+
+  const sampleCap = 800;
+  const dbTotal = await countFor();
+  const fetchLimit = Math.min(dbTotal || sampleCap, sampleCap);
+  let rows = await fetchTransactionsList(source, {
+    from,
+    to,
+    limit: fetchLimit,
+  });
+
+  if (opts?.status && opts.status !== "all") {
+    rows = rows.filter((r) => normalizedTxnStatus(r.status) === opts.status);
+    const { success, pending, refund } = tallyTxnStatus(rows);
+    const total = rows.length;
+    const note =
+      dbTotal > fetchLimit
+        ? `Filter status "${opts.status}" dari sampel ${rows.length} baris (total di rentang ${dbTotal}).`
+        : null;
     return {
       total,
+      success: opts.status === "success" ? total : success,
+      pending: opts.status === "pending" ? total : pending,
+      refund: opts.status === "refund" ? total : refund,
+      sampled: rows.length,
+      note,
+    };
+  }
+
+  const { success, pending, refund } = tallyTxnStatus(rows);
+  if (dbTotal > rows.length) {
+    return {
+      total: dbTotal,
       success: null as number | null,
       pending: null as number | null,
       refund: null as number | null,
       sampled: rows.length,
-      note: `Hitung status dari sampel ${rows.length} baris terbaru (total ${total}).`,
+      note: `Hitung status dari sampel ${rows.length} baris terbaru (total ${dbTotal}).`,
     };
   }
-  return { total, success, pending, refund, sampled: rows.length, note: null as string | null };
+  return { total: dbTotal, success, pending, refund, sampled: rows.length, note: null as string | null };
+}
+
+type TxItemForAi = {
+  transactionId: string;
+  amountIdr: number;
+  status: "success" | "pending" | "refund";
+  createdAt: string;
+  createdAtWib: string;
+  referenceType: string | null;
+  referenceId: string | null;
+  courtBookingId: string | null;
+  payer: string | null;
+};
+
+function formatWibDateTime(iso: string): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: FINANCE_TZ,
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(iso));
+}
+
+function formatWibHour(iso: string): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    timeZone: FINANCE_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+}
+
+function buildTransactionAnalysis(
+  items: TxItemForAi[],
+  counts: {
+    total: number;
+    success: number | null;
+    pending: number | null;
+    refund: number | null;
+    note: string | null;
+  },
+  totalAmountIdr: number,
+) {
+  const byStatus = {
+    success: { count: 0, amountIdr: 0 },
+    pending: { count: 0, amountIdr: 0 },
+    refund: { count: 0, amountIdr: 0 },
+  };
+  const byHourWib = new Map<string, number>();
+  const payerCounts = new Map<string, number>();
+
+  for (const it of items) {
+    byStatus[it.status].count += 1;
+    byStatus[it.status].amountIdr += it.amountIdr;
+    const hour = formatWibHour(it.createdAt);
+    byHourWib.set(hour, (byHourWib.get(hour) ?? 0) + 1);
+    if (it.payer) payerCounts.set(it.payer, (payerCounts.get(it.payer) ?? 0) + 1);
+  }
+
+  const topPayers = [...payerCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([label, count]) => ({ payer: label, transactionCount: count }));
+
+  const largest = [...items]
+    .sort((a, b) => b.amountIdr - a.amountIdr)
+    .slice(0, 8)
+    .map((t) => ({
+      transactionId: t.transactionId,
+      amountIdr: t.amountIdr,
+      status: t.status,
+      createdAtWib: t.createdAtWib,
+      payer: t.payer,
+      courtBookingId: t.courtBookingId,
+    }));
+
+  const avgAmountIdr = items.length ? Math.round(totalAmountIdr / items.length) : 0;
+
+  return {
+    headline:
+      counts.total === 0
+        ? "Tidak ada transaksi pada rentang tanggal ini."
+        : `${counts.total} transaksi (total Rp ${totalAmountIdr.toLocaleString("id-ID")}, rata-rata Rp ${avgAmountIdr.toLocaleString("id-ID")}/transaksi).`,
+    byStatus,
+    byHourWib: Object.fromEntries([...byHourWib.entries()].sort((a, b) => a[0].localeCompare(b[0]))),
+    topPayers,
+    largestTransactions: largest,
+    uniquePayersInSample: payerCounts.size,
+    countsNote: counts.note,
+  };
 }
 
 export async function queryTransactionsForAi(args: {
@@ -310,31 +500,31 @@ export async function queryTransactionsForAi(args: {
   dateFrom?: string;
   dateTo?: string;
 }) {
-  const period = args.period ?? "month";
-  let from: string | undefined;
-  let to: string | undefined;
-
-  if (args.dateFrom || args.dateTo) {
-    from = args.dateFrom ? new Date(args.dateFrom).toISOString() : undefined;
-    to = args.dateTo ? new Date(args.dateTo + "T23:59:59.999Z").toISOString() : undefined;
-  } else {
-    ({ from, to } = periodRange(period));
-  }
+  const range = resolveTransactionCreatedRange({
+    period: args.period,
+    dateFrom: args.dateFrom,
+    dateTo: args.dateTo,
+  });
+  const { from, to, dateFrom, dateTo, period } = range;
+  const status = args.status ?? "all";
+  const isSpecificDate = period === "custom";
+  const listLimit = isSpecificDate ? Math.min(args.limit ?? 100, 500) : (args.limit ?? 25);
 
   const source = await resolveFinanceTxnSourceForAi();
-  const counts = await countTransactions(source, from, to);
+  const counts = await countTransactions(source, from, to, { status });
+  const effectiveLimit = isSpecificDate
+    ? Math.min(Math.max(args.limit ?? 100, counts.total), 500)
+    : listLimit;
   const list = await fetchTransactionsList(source, {
     from,
     to,
-    limit: args.limit ?? 25,
+    limit: effectiveLimit,
     bookingId: args.bookingId,
     userId: args.userId,
   });
 
   const filtered =
-    args.status && args.status !== "all"
-      ? list.filter((r) => normalizedTxnStatus(r.status) === args.status)
-      : list;
+    status !== "all" ? list.filter((r) => normalizedTxnStatus(r.status) === status) : list;
 
   const bookingIds = [
     ...new Set(
@@ -360,15 +550,17 @@ export async function queryTransactionsForAi(args: {
   ];
   const profiles = await fetchProfilesMap(userIds);
 
-  const items = filtered.map((r) => {
+  const items: TxItemForAi[] = filtered.map((r) => {
     const bookingId = r.court_booking_id ?? r.reference_id;
     const bookUserId = bookingId ? bookingUserById.get(bookingId) : undefined;
     const payerId = r.payer_user_id ?? bookUserId;
+    const normStatus = normalizedTxnStatus(r.status);
     return {
       transactionId: r.id,
       amountIdr: r.amount_idr,
-      status: normalizedTxnStatus(r.status),
+      status: normStatus,
       createdAt: r.created_at,
+      createdAtWib: formatWibDateTime(r.created_at),
       referenceType: r.reference_type,
       referenceId: r.reference_id,
       courtBookingId: bookingId,
@@ -376,11 +568,21 @@ export async function queryTransactionsForAi(args: {
     };
   });
 
+  const totalAmountIdr = items.reduce((sum, r) => sum + (r.amountIdr ?? 0), 0);
+  const analysis = buildTransactionAnalysis(items, counts, totalAmountIdr);
+
   return {
     dataSource: source,
     period,
     timezone: FINANCE_TZ,
+    dateRange: dateFrom ? { from: dateFrom, to: dateTo ?? dateFrom } : undefined,
+    createdAtFilter: from || to ? { from: from ?? null, to: to ?? null } : undefined,
+    statusFilter: status,
     counts,
+    totalAmountIdr,
+    itemsReturned: items.length,
+    itemsTruncated: counts.total > items.length,
+    analysis,
     items,
   };
 }
@@ -417,20 +619,23 @@ export async function queryBookingsForAi(args: {
     };
   }
 
-  const dateFrom = args.dateFrom ?? periodBookingDateFrom(period);
+  const df = parseYmd(args.dateFrom);
+  const dt = parseYmd(args.dateTo);
+  const dateFrom = df ?? dt ?? periodBookingDateFrom(period);
+  const dateTo = dt ?? df;
   let q = supabaseAdmin
     .from("court_bookings")
     .select("id, user_id, booking_date, start_time, duration_hours, court_numbers, booking_type, total_amount_idr, created_at");
   if (args.userId) q = q.eq("user_id", args.userId);
   if (dateFrom) q = q.gte("booking_date", dateFrom);
-  if (args.dateTo) q = q.lte("booking_date", args.dateTo);
+  if (dateTo) q = q.lte("booking_date", dateTo);
   if (args.bookingType) q = q.eq("booking_type", args.bookingType as "match" | "program" | "program_league_match");
 
   const { data: allRows, error } = await q.limit(3000);
   if (error) throw new Error(error.message);
   const rows = allRows ?? [];
 
-  const { count: totalAll } = await supabaseAdmin
+  const { count: totalAllCount } = await supabaseAdmin
     .from("court_bookings")
     .select("id", { count: "exact", head: true });
 
@@ -469,13 +674,44 @@ export async function queryBookingsForAi(args: {
     userId: r.user_id,
   }));
 
+  const byType: Record<string, { count: number; amountIdr: number; hours: number }> = {};
+  let totalRevenueIdr = 0;
+  let totalHours = 0;
+  for (const r of rows) {
+    const t = r.booking_type ?? "unknown";
+    if (!byType[t]) byType[t] = { count: 0, amountIdr: 0, hours: 0 };
+    byType[t].count += 1;
+    byType[t].amountIdr += Number(r.total_amount_idr ?? 0);
+    byType[t].hours += Number(r.duration_hours ?? 1);
+    totalRevenueIdr += Number(r.total_amount_idr ?? 0);
+    totalHours += Number(r.duration_hours ?? 1);
+  }
+
+  const analysis = {
+    headline:
+      rows.length === 0
+        ? "Tidak ada reservasi pada rentang ini."
+        : `${rows.length} reservasi — Rp ${totalRevenueIdr.toLocaleString("id-ID")}, ${totalHours} jam court.`,
+    byType,
+    avgAmountPerBookingIdr: rows.length ? Math.round(totalRevenueIdr / rows.length) : 0,
+    avgHoursPerBooking: rows.length ? Math.round((totalHours / rows.length) * 10) / 10 : 0,
+    topBookerSharePct:
+      rows.length && topBookers[0]
+        ? Math.round((topBookers[0].bookingCount / rows.length) * 100)
+        : 0,
+  };
+
   return {
     period,
     timezone: FINANCE_TZ,
-    totalBookingsAllTime: totalAll.count ?? 0,
+    totalBookingsAllTime: totalAllCount ?? 0,
+    dateRange: df || dt ? { from: dateFrom, to: dateTo ?? dateFrom } : undefined,
     bookingsInPeriod: rows.length,
+    totalRevenueIdr,
+    totalHours,
     topBookers,
     recentBookings,
+    analysis,
   };
 }
 
@@ -1118,9 +1354,10 @@ export async function buildOperationsSnapshotForAi(): Promise<OperationsAiSnapsh
   const monthRange = periodRange("month");
   const weekRange = periodRange("week");
 
-  let allTx = { total: 0, success: 0, pending: 0, refund: 0, sampled: 0, note: null as string | null };
-  let monthTx = { ...allTx };
-  let weekTx = { ...allTx };
+  type TxCount = Awaited<ReturnType<typeof countTransactions>>;
+  let allTx: TxCount = { total: 0, success: 0, pending: 0, refund: 0, sampled: 0, note: null };
+  let monthTx: TxCount = { ...allTx };
+  let weekTx: TxCount = { ...allTx };
   let monthBookings = {
     bookingsInPeriod: 0,
     topBookers: [] as Awaited<ReturnType<typeof queryBookingsForAi>>["topBookers"],
@@ -1138,7 +1375,11 @@ export async function buildOperationsSnapshotForAi(): Promise<OperationsAiSnapsh
   }
 
   try {
-    monthBookings = await queryBookingsForAi({ period: "month", topBookersLimit: 8, recentLimit: 0 });
+    const mb = await queryBookingsForAi({ period: "month", topBookersLimit: 8, recentLimit: 0 });
+    monthBookings = {
+      bookingsInPeriod: mb.bookingsInPeriod ?? 0,
+      topBookers: mb.topBookers ?? [],
+    };
   } catch {
     monthBookings = { bookingsInPeriod: 0, topBookers: [] };
   }
@@ -1160,7 +1401,7 @@ export async function buildOperationsSnapshotForAi(): Promise<OperationsAiSnapsh
     bookings: {
       allTimeTotal: allBookings.count ?? 0,
       last30DaysTotal: monthBookings.bookingsInPeriod,
-      topBookersLast30Days: monthBookings.topBookers.map((b) => ({
+      topBookersLast30Days: (monthBookings.topBookers ?? []).map((b) => ({
         userId: b.userId,
         userLabel: b.userLabel,
         bookingCount: b.bookingCount,
