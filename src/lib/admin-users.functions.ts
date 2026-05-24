@@ -35,7 +35,7 @@ export const getUsersOverview = createServerFn({ method: "POST" })
     let q = supabaseAdmin
       .from("profiles")
       .select(
-        "id, user_id, display_name, username, avatar_url, role, rank, coins, onboarded, updated_at, created_at, email, membership_tier",
+        "id, user_id, display_name, username, avatar_url, role, rank, total_score, coins, onboarded, updated_at, created_at, email, membership_tier",
       )
       .order("updated_at", { ascending: false })
       .limit(limit);
@@ -54,7 +54,7 @@ export const getUsersOverview = createServerFn({ method: "POST" })
       let q2 = supabaseAdmin
         .from("profiles")
         .select(
-          "id, user_id, display_name, username, avatar_url, role, rank, coins, onboarded, updated_at, created_at, membership_tier",
+          "id, user_id, display_name, username, avatar_url, role, rank, total_score, coins, onboarded, updated_at, created_at, membership_tier",
         )
         .order("updated_at", { ascending: false })
         .limit(limit);
@@ -95,6 +95,7 @@ export const getUsersOverview = createServerFn({ method: "POST" })
       avatar_url: string | null;
       role: string;
       rank: string | null;
+      total_score: number;
       coins: number;
       onboarded: boolean;
       updated_at: string;

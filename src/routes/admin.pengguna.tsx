@@ -22,12 +22,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getUsersOverview } from "@/lib/admin-users.functions";
+import { APP_RANK_VALUES, appRankLabel } from "@/lib/app-rank";
+import { GoldMemberPromoPanel } from "@/components/admin/GoldMemberPromoPanel";
 
 export const Route = createFileRoute("/admin/pengguna")({
   component: PenggunaPage,
 });
 
-const RANKS = ["cupu", "pemula", "standard", "ciamik", "ndewo"] as const;
+const RANKS = APP_RANK_VALUES;
 
 function PenggunaPage() {
   const fetchUsers = useServerFn(getUsersOverview);
@@ -96,7 +98,7 @@ function PenggunaPage() {
                 <SelectItem value="all">Semua Rank</SelectItem>
                 {RANKS.map((r) => (
                   <SelectItem key={r} value={r}>
-                    {r}
+                    {appRankLabel(r)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -136,7 +138,7 @@ function PenggunaPage() {
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">{u.email ?? "—"}</td>
                   <td className="px-5 py-3">
-                    <Badge variant="outline">{u.rank ?? "—"}</Badge>
+                    <Badge variant="outline">{appRankLabel(u.rank)}</Badge>
                   </td>
                   <td className="px-5 py-3">
                     <Badge variant={u.membership_tier === "gold" ? "default" : "secondary"}>
@@ -163,13 +165,15 @@ function PenggunaPage() {
       </section>
 
       <Dialog open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="flex max-h-[min(85vh,640px)] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
           {selectedUser && (
             <>
-              <DialogHeader>
+              <DialogHeader className="shrink-0 border-b px-6 py-4">
                 <DialogTitle>Detail Pengguna</DialogTitle>
               </DialogHeader>
-              <UserDetailCard user={selectedUser} />
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                <UserDetailCard user={selectedUser} />
+              </div>
             </>
           )}
         </DialogContent>
@@ -182,7 +186,7 @@ type UserRow = NonNullable<Awaited<ReturnType<typeof getUsersOverview>>["users"]
 
 function UserDetailCard({ user: u }: { user: UserRow }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center gap-4">
         <Avatar className="h-14 w-14">
           <AvatarImage src={u.avatar_url ?? undefined} />
@@ -197,7 +201,8 @@ function UserDetailCard({ user: u }: { user: UserRow }) {
 
       <div className="grid grid-cols-2 gap-3 text-sm">
         <DetailItem label="Role" value={u.role} />
-        <DetailItem label="Rank" value={u.rank ?? "—"} />
+        <DetailItem label="Rank" value={appRankLabel(u.rank)} />
+        <DetailItem label="Total Score" value={String(u.total_score ?? 0)} />
         <DetailItem label="Membership Tier" value={u.membership_tier ?? "basic"} />
         <DetailItem label="Coins" value={u.coins.toLocaleString("id-ID")} />
         <DetailItem label="Last Active" value={u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString("id-ID") : "—"} />
@@ -222,6 +227,8 @@ function UserDetailCard({ user: u }: { user: UserRow }) {
           )}
         </div>
       )}
+
+      <GoldMemberPromoPanel userId={u.user_id} membershipTier={u.membership_tier ?? "basic"} />
     </div>
   );
 }

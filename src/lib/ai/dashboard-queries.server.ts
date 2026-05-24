@@ -741,7 +741,7 @@ export async function queryUsersStatsForAi(args: {
     const { count: rkc } = await supabaseAdmin
       .from("profiles")
       .select("*", { count: "exact", head: true })
-      .eq("rank", args.rank as "cupu" | "pemula" | "standard" | "ciamik" | "ndewo");
+      .eq("rank", args.rank as "beginner" | "bronze" | "silver" | "gold" | "platinum");
     rankCount = rkc ?? 0;
   }
 
@@ -978,7 +978,7 @@ export async function lookupUserForAi(args: { userId?: string; email?: string; s
       .select("user_id, display_name, username, role, rank, coins, onboarded, updated_at")
       .limit(maxResults);
     if (args.role) q = q.eq("role", args.role);
-    if (args.rank) q = q.eq("rank", args.rank as "cupu" | "pemula" | "standard" | "ciamik" | "ndewo");
+    if (args.rank) q = q.eq("rank", args.rank as "beginner" | "bronze" | "silver" | "gold" | "platinum");
     if (term) {
       const s = `%${term}%`;
       q = q.or(`display_name.ilike.${s},username.ilike.${s}`);

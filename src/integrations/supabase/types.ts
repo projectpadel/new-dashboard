@@ -80,6 +80,142 @@ export type Database = {
         }
         Relationships: []
       }
+      gold_member_promo_codes: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          promo_code: string
+          updated_at: string
+          updated_by: string
+          user_id: string
+          voucher_type: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          promo_code: string
+          updated_at?: string
+          updated_by: string
+          user_id: string
+          voucher_type: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          promo_code?: string
+          updated_at?: string
+          updated_by?: string
+          user_id?: string
+          voucher_type?: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gold_member_promo_codes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      gold_member_voucher_entitlements: {
+        Row: {
+          created_at: string
+          first_used_at: string | null
+          gold_started_at: string
+          total_hours_quota: number
+          updated_at: string
+          used_hours: number
+          user_id: string
+          valid_from: string | null
+          valid_until: string | null
+          voucher_type: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Insert: {
+          created_at?: string
+          first_used_at?: string | null
+          gold_started_at?: string
+          total_hours_quota: number
+          updated_at?: string
+          used_hours?: number
+          user_id: string
+          valid_from?: string | null
+          valid_until?: string | null
+          voucher_type: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Update: {
+          created_at?: string
+          first_used_at?: string | null
+          gold_started_at?: string
+          total_hours_quota?: number
+          updated_at?: string
+          used_hours?: number
+          user_id?: string
+          valid_from?: string | null
+          valid_until?: string | null
+          voucher_type?: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gold_member_voucher_entitlements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      gold_member_voucher_usages: {
+        Row: {
+          court_booking_id: string
+          created_at: string
+          discount_amount_idr: number
+          final_amount_idr: number
+          hours_consumed: number
+          id: string
+          original_amount_idr: number
+          user_id: string
+          voucher_type: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Insert: {
+          court_booking_id: string
+          created_at?: string
+          discount_amount_idr: number
+          final_amount_idr: number
+          hours_consumed: number
+          id?: string
+          original_amount_idr: number
+          user_id: string
+          voucher_type: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Update: {
+          court_booking_id?: string
+          created_at?: string
+          discount_amount_idr?: number
+          final_amount_idr?: number
+          hours_consumed?: number
+          id?: string
+          original_amount_idr?: number
+          user_id?: string
+          voucher_type?: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gold_member_voucher_usages_court_booking_id_fkey"
+            columns: ["court_booking_id"]
+            isOneToOne: true
+            referencedRelation: "court_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gold_member_voucher_usages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       instructors: {
         Row: {
           avatar_url: string | null
@@ -1175,6 +1311,11 @@ export type Database = {
           name: string
           poster_storage_path: string | null
           poster_url: string | null
+          prize_pct_1st: number | null
+          prize_pct_2nd: number | null
+          prize_pct_3rd: number | null
+          prize_pct_mvp: number | null
+          prize_pool_idr: number | null
           rank_class: Database["public"]["Enums"]["app_rank"]
           registration_deadline: string
           registration_early_closed_at: string | null
@@ -1183,6 +1324,7 @@ export type Database = {
           starts_at: string
           status: string
           team_slots: number
+          tournament_format: string
           updated_at: string
         }
         Insert: {
@@ -1196,6 +1338,11 @@ export type Database = {
           name: string
           poster_storage_path?: string | null
           poster_url?: string | null
+          prize_pct_1st?: number | null
+          prize_pct_2nd?: number | null
+          prize_pct_3rd?: number | null
+          prize_pct_mvp?: number | null
+          prize_pool_idr?: number | null
           rank_class: Database["public"]["Enums"]["app_rank"]
           registration_deadline: string
           registration_early_closed_at?: string | null
@@ -1204,6 +1351,7 @@ export type Database = {
           starts_at: string
           status?: string
           team_slots: number
+          tournament_format?: string
           updated_at?: string
         }
         Update: {
@@ -1217,6 +1365,11 @@ export type Database = {
           name?: string
           poster_storage_path?: string | null
           poster_url?: string | null
+          prize_pct_1st?: number | null
+          prize_pct_2nd?: number | null
+          prize_pct_3rd?: number | null
+          prize_pct_mvp?: number | null
+          prize_pool_idr?: number | null
           rank_class?: Database["public"]["Enums"]["app_rank"]
           registration_deadline?: string
           registration_early_closed_at?: string | null
@@ -1225,6 +1378,7 @@ export type Database = {
           starts_at?: string
           status?: string
           team_slots?: number
+          tournament_format?: string
           updated_at?: string
         }
         Relationships: [
@@ -1482,6 +1636,22 @@ export type Database = {
           status: Database["public"]["Enums"]["match_status"]
         }[]
       }
+      consume_gold_voucher_for_court_booking: {
+        Args: {
+          p_court_booking_id: string
+          p_voucher_type: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Returns: Json
+      }
+      get_my_gold_voucher_status: { Args: never; Returns: Json }
+      preview_gold_court_vouchers: {
+        Args: {
+          p_courts_count: number
+          p_duration_hours: number
+          p_subtotal_idr: number
+        }
+        Returns: Json
+      }
       calculate_rank: {
         Args: { score: number }
         Returns: Database["public"]["Enums"]["app_rank"]
@@ -1557,6 +1727,125 @@ export type Database = {
           p_sessions: Json
         }
         Returns: string
+      }
+      admin_create_tournament_draft: {
+        Args: {
+          p_actor_user_id: string
+          p_description: string
+          p_ends_at: string
+          p_entry_fee?: number
+          p_name: string
+          p_poster_storage_path?: string
+          p_poster_url?: string
+          p_prize_pct_1st?: number
+          p_prize_pct_2nd?: number
+          p_prize_pct_3rd?: number
+          p_prize_pct_mvp?: number
+          p_prize_pool_idr?: number
+          p_rank_class: Database["public"]["Enums"]["app_rank"]
+          p_registration_deadline: string
+          p_starts_at: string
+          p_team_slots: number
+          p_tournament_format?: string
+        }
+        Returns: string
+      }
+      admin_update_tournament: {
+        Args: {
+          p_actor_user_id: string
+          p_description: string
+          p_ends_at: string
+          p_entry_fee?: number
+          p_name: string
+          p_poster_storage_path?: string
+          p_poster_url?: string
+          p_prize_pct_1st?: number
+          p_prize_pct_2nd?: number
+          p_prize_pct_3rd?: number
+          p_prize_pct_mvp?: number
+          p_prize_pool_idr?: number
+          p_rank_class: Database["public"]["Enums"]["app_rank"]
+          p_registration_deadline: string
+          p_starts_at: string
+          p_team_slots: number
+          p_tournament_format?: string
+          p_tournament_id: string
+        }
+        Returns: undefined
+      }
+      admin_generate_tournament_bracket: {
+        Args: { p_actor_user_id: string; p_tournament_id: string }
+        Returns: undefined
+      }
+      admin_finalize_tournament_bracket: {
+        Args: { p_actor_user_id: string; p_tournament_id: string }
+        Returns: undefined
+      }
+      admin_publish_tournament: {
+        Args: { p_actor_user_id: string; p_tournament_id: string }
+        Returns: undefined
+      }
+      admin_unpublish_tournament: {
+        Args: { p_actor_user_id: string; p_tournament_id: string }
+        Returns: undefined
+      }
+      admin_get_gold_member_benefits: {
+        Args: { p_actor_user_id: string; p_target_user_id: string }
+        Returns: Json
+      }
+      admin_upsert_gold_promo_code: {
+        Args: {
+          p_actor_user_id: string
+          p_promo_code: string
+          p_target_user_id: string
+          p_voucher_type: Database["public"]["Enums"]["gold_voucher_type"]
+        }
+        Returns: Json
+      }
+      admin_review_tournament_team: {
+        Args: { p_actor_user_id: string; p_team_id: string; p_approve: boolean }
+        Returns: undefined
+      }
+      admin_create_tournament_match_schedule: {
+        Args: {
+          p_actor_user_id: string
+          p_courts?: number[]
+          p_duration_hours?: number
+          p_interval_minutes?: number
+          p_start_at: string
+          p_tournament_id: string
+        }
+        Returns: undefined
+      }
+      admin_update_tournament_match_schedule: {
+        Args: {
+          p_actor_user_id: string
+          p_court_number: number
+          p_duration_hours: number
+          p_match_id: string
+          p_scheduled_at: string
+        }
+        Returns: undefined
+      }
+      admin_submit_tournament_match_result: {
+        Args: {
+          p_actor_user_id: string
+          p_confirm?: boolean
+          p_match_id: string
+          p_sets_scores: Json
+        }
+        Returns: undefined
+      }
+      admin_swap_tournament_bracket_teams: {
+        Args: {
+          p_actor_user_id: string
+          p_match_a: string
+          p_match_b: string
+          p_slot_a: string
+          p_slot_b: string
+          p_tournament_id: string
+        }
+        Returns: undefined
       }
       create_tournament: {
         Args: {
@@ -1918,8 +2207,9 @@ export type Database = {
       }
     }
     Enums: {
-      app_rank: "cupu" | "pemula" | "standard" | "ciamik" | "ndewo"
+      app_rank: "beginner" | "bronze" | "silver" | "gold" | "platinum"
       booking_type: "match" | "program" | "program_league_match"
+      gold_voucher_type: "free_hours" | "discount_20"
       match_result_status: "draft" | "voting" | "confirmed" | "invalid"
       match_status: "open" | "locked" | "completed" | "invalid"
       match_type: "public" | "double"
@@ -2063,7 +2353,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_rank: ["cupu", "pemula", "standard", "ciamik", "ndewo"],
+      app_rank: ["beginner", "bronze", "silver", "gold", "platinum"],
       booking_type: ["match", "program", "program_league_match"],
       match_result_status: ["draft", "voting", "confirmed", "invalid"],
       match_status: ["open", "locked", "completed", "invalid"],
