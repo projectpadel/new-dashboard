@@ -41,7 +41,7 @@ function CoachAdminPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const rows = data?.instructors ?? [];
+  const rows = data?.coaches ?? data?.instructors ?? [];
 
   function handleDelete(coachId: string, name: string) {
     if (

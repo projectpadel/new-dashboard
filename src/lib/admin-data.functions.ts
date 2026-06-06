@@ -293,13 +293,13 @@ export const getInstructorsDashboard = createServerFn({ method: "GET" })
   .middleware([requireSuperadminAuth])
   .handler(async () => {
     const { data: rows, error } = await supabaseAdmin
-      .from("instructors")
+      .from("coaches")
       .select(
         "id, user_id, display_name, hourly_rate_idr, avg_rating, total_raters, open_to_book, bio, created_at",
       )
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return { instructors: rows ?? [] };
+    return { coaches: rows ?? [], instructors: rows ?? [] };
   });
 
 export const getNotificationsDashboard = createServerFn({ method: "GET" })

@@ -1252,7 +1252,7 @@ export async function queryInstructorsForAi(args: {
 }) {
   if (args.instructorId) {
     const { data: row, error } = await supabaseAdmin
-      .from("instructors")
+      .from("coaches")
       .select("*")
       .eq("id", args.instructorId)
       .maybeSingle();
@@ -1269,7 +1269,7 @@ export async function queryInstructorsForAi(args: {
   }
 
   let q = supabaseAdmin
-    .from("instructors")
+    .from("coaches")
     .select("id, user_id, display_name, hourly_rate_idr, avg_rating, total_raters, open_to_book, bio, created_at")
     .order("created_at", { ascending: false });
 

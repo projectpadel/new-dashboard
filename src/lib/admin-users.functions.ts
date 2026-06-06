@@ -110,7 +110,7 @@ export const getUsersOverview = createServerFn({ method: "POST" })
     const membershipByUser = new Map<string, { total: number; approved: number; pending: number; programNames: string[] }>();
     if (userIds.length) {
       const [{ data: instructorRows, error: instErr }, { data: ppRows }] = await Promise.all([
-        supabaseAdmin.from("instructors").select("user_id").in("user_id", userIds),
+        supabaseAdmin.from("coaches").select("user_id").in("user_id", userIds),
         supabaseAdmin.from("program_participants").select("user_id, program_id, membership_status").in("user_id", userIds),
       ]);
       if (instErr) throw new Error(instErr.message);
@@ -168,7 +168,7 @@ export const getUserDashboardSummary = createServerFn({ method: "POST" })
     const [profile, instructor, bookings, prizes, mp, pp, psp] = await Promise.all([
       supabaseAdmin.from("profiles").select("*").eq("user_id", uid).maybeSingle(),
       supabaseAdmin
-        .from("instructors")
+        .from("coaches")
         .select("id, user_id, display_name, hourly_rate_idr, open_to_book, avg_rating, total_raters")
         .eq("user_id", uid)
         .maybeSingle(),
@@ -302,7 +302,7 @@ export const getUsersEligibleForInstructor = createServerFn({ method: "GET" })
     await assertSuperadmin(context.userId);
 
     const [{ data: instructors, error: iErr }, { data: profiles, error: pErr }] = await Promise.all([
-      supabaseAdmin.from("instructors").select("user_id"),
+      supabaseAdmin.from("coaches").select("user_id"),
       supabaseAdmin
         .from("profiles")
         .select("user_id, display_name, username, avatar_url, role")
@@ -333,7 +333,7 @@ export const promoteUserToInstructor = createServerFn({ method: "POST" })
     await assertSuperadmin(context.userId);
 
     const { data: existing } = await supabaseAdmin
-      .from("instructors")
+      .from("coaches")
       .select("id")
       .eq("user_id", data.userId)
       .maybeSingle();
@@ -352,7 +352,7 @@ export const promoteUserToInstructor = createServerFn({ method: "POST" })
     const hourlyRate = data.hourlyRateIdr ?? 150_000;
 
     const { data: inserted, error } = await supabaseAdmin
-      .from("instructors")
+      .from("coaches")
       .insert({
         user_id: data.userId,
         display_name: displayName,
@@ -366,7 +366,14 @@ export const promoteUserToInstructor = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    return { ok: true, instructor: inserted };
+    const { error: roleErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ role: "coach", updated_at: new Date().toISOString() })
+      .eq("user_id", data.userId)
+      .eq("role", "user");
+    if (roleErr) throw new Error(roleErr.message);
+
+    return { ok: true, coach: inserted };
   });
 
 export const revokeInstructorEligibility = createServerFn({ method: "POST" })
@@ -376,7 +383,7 @@ export const revokeInstructorEligibility = createServerFn({ method: "POST" })
     await assertSuperadmin(context.userId);
 
     const { data: row, error: findErr } = await supabaseAdmin
-      .from("instructors")
+      .from("coaches")
       .select("id")
       .eq("user_id", data.userId)
       .maybeSingle();
@@ -392,8 +399,15 @@ export const revokeInstructorEligibility = createServerFn({ method: "POST" })
       throw new Error("Coach masih terikat program. Pindahkan program terlebih dahulu.");
     }
 
-    const { error } = await supabaseAdmin.from("instructors").delete().eq("user_id", data.userId);
+    const { error } = await supabaseAdmin.from("coaches").delete().eq("user_id", data.userId);
     if (error) throw new Error(error.message);
+
+    const { error: roleErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ role: "user", updated_at: new Date().toISOString() })
+      .eq("user_id", data.userId)
+      .eq("role", "coach");
+    if (roleErr) throw new Error(roleErr.message);
 
     return { ok: true };
   });

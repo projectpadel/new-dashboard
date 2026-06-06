@@ -1,5 +1,87 @@
--- Admin RPC untuk Coach Hub dashboard (superadmin via service role).
+-- Rename instructors → coaches; sync profiles.role; update admin coach RPCs.
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'instructors' AND table_type = 'BASE TABLE'
+  ) THEN
+    ALTER TABLE public.instructors RENAME TO coaches;
+  END IF;
+END $$;
+
+-- Backward-compatible view for legacy RPC / mobile clients.
+CREATE OR REPLACE VIEW public.instructors AS
+  SELECT * FROM public.coaches;
+
+COMMENT ON VIEW public.instructors IS 'Backward-compatible alias for coaches (legacy RPC / clients).';
+
+-- Backfill role for users who are already coaches.
+UPDATE public.profiles p
+SET role = 'coach', updated_at = now()
+FROM public.coaches c
+WHERE c.user_id = p.user_id
+  AND c.deleted_at IS NULL
+  AND p.role = 'user';
+
+CREATE OR REPLACE FUNCTION public.sync_coach_profile_role_on_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  UPDATE public.profiles
+  SET role = 'coach', updated_at = now()
+  WHERE user_id = NEW.user_id
+    AND role = 'user';
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sync_coach_profile_role_on_delete()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  UPDATE public.profiles
+  SET role = 'user', updated_at = now()
+  WHERE user_id = OLD.user_id
+    AND role = 'coach';
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_coaches_sync_profile_role_insert ON public.coaches;
+CREATE TRIGGER trg_coaches_sync_profile_role_insert
+  AFTER INSERT ON public.coaches
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_coach_profile_role_on_insert();
+
+DROP TRIGGER IF EXISTS trg_coaches_sync_profile_role_delete ON public.coaches;
+CREATE TRIGGER trg_coaches_sync_profile_role_delete
+  AFTER DELETE ON public.coaches
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_coach_profile_role_on_delete();
+
+CREATE OR REPLACE FUNCTION public.is_instructor(_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.coaches c
+    WHERE c.user_id = _user_id
+      AND c.deleted_at IS NULL
+  );
+$$;
+
+-- Admin RPC (references coaches table after rename).
 CREATE OR REPLACE FUNCTION public.admin_get_coach_hub_grid(
   p_instructor_id uuid,
   p_booking_date date
@@ -38,13 +120,13 @@ DECLARE
   v_in_break boolean;
   v_in_hours boolean;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.instructors i WHERE i.id = p_instructor_id) THEN
+  IF NOT EXISTS (SELECT 1 FROM public.coaches i WHERE i.id = p_instructor_id) THEN
     RETURN;
   END IF;
 
   SELECT i.daily_break_start, i.daily_break_end
   INTO v_daily_break_start, v_daily_break_end
-  FROM public.instructors i
+  FROM public.coaches i
   WHERE i.id = p_instructor_id;
 
   v_dow := public.date_to_day_of_week(p_booking_date);
@@ -159,7 +241,7 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.instructors i WHERE i.id = p_instructor_id) THEN
+  IF NOT EXISTS (SELECT 1 FROM public.coaches i WHERE i.id = p_instructor_id) THEN
     RAISE EXCEPTION 'Coach not found';
   END IF;
 
@@ -198,11 +280,11 @@ AS $$
 DECLARE
   v_row jsonb;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.instructors i WHERE i.id = p_instructor_id) THEN
+  IF NOT EXISTS (SELECT 1 FROM public.coaches i WHERE i.id = p_instructor_id) THEN
     RAISE EXCEPTION 'Coach not found';
   END IF;
 
-  UPDATE public.instructors
+  UPDATE public.coaches
   SET
     daily_break_start = p_daily_break_start,
     daily_break_end = p_daily_break_end,

@@ -63,7 +63,7 @@ export const getCoachById = createServerFn({ method: "POST" })
   .inputValidator((input) => coachIdSchema.parse(input))
   .handler(async ({ data }) => {
     const { data: coach, error } = await supabaseAdmin
-      .from("instructors")
+      .from("coaches")
       .select(
         "id, user_id, display_name, avatar_url, hourly_rate_idr, open_to_book, avg_rating, total_raters, bio, daily_break_start, daily_break_end, hub_setup_at",
       )
@@ -92,7 +92,7 @@ export const getCoachScheduleEdit = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const [{ data: coach, error: cErr }, { data: weekly, error: wErr }] = await Promise.all([
       supabaseAdmin
-        .from("instructors")
+        .from("coaches")
         .select("id, display_name, daily_break_start, daily_break_end")
         .eq("id", data.coachId)
         .maybeSingle(),
@@ -215,7 +215,7 @@ export const getCoachBookingDetail = createServerFn({ method: "POST" })
           .eq("id", booking.court_booking_id)
           .maybeSingle(),
         supabaseAdmin
-          .from("instructors")
+          .from("coaches")
           .select("id, display_name")
           .eq("id", booking.instructor_id)
           .maybeSingle(),
@@ -262,7 +262,7 @@ export const deleteCoachById = createServerFn({ method: "POST" })
     await assertSuperadmin(context.userId);
 
     const { data: row, error: findErr } = await supabaseAdmin
-      .from("instructors")
+      .from("coaches")
       .select("id, user_id, display_name")
       .eq("id", data.coachId)
       .maybeSingle();
@@ -285,10 +285,17 @@ export const deleteCoachById = createServerFn({ method: "POST" })
     if (bookingsErr) throw new Error(bookingsErr.message);
 
     const { error: delErr } = await supabaseAdmin
-      .from("instructors")
+      .from("coaches")
       .delete()
       .eq("id", row.id);
     if (delErr) throw new Error(delErr.message);
+
+    const { error: roleErr } = await supabaseAdmin
+      .from("profiles")
+      .update({ role: "user", updated_at: new Date().toISOString() })
+      .eq("user_id", row.user_id)
+      .eq("role", "coach");
+    if (roleErr) throw new Error(roleErr.message);
 
     return { ok: true, displayName: row.display_name };
   });

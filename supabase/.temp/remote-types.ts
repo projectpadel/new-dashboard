@@ -1,4 +1,11 @@
-﻿export type Json =
+﻿node.exe : Initialising login role...
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Initialising login role...:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+export type Json =
   | string
   | number
   | boolean
@@ -154,13 +161,6 @@ export type Database = {
             foreignKeyName: "coach_bookings_instructor_id_fkey"
             columns: ["instructor_id"]
             isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "coach_bookings_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: false
             referencedRelation: "instructors"
             referencedColumns: ["id"]
           },
@@ -196,13 +196,6 @@ export type Database = {
             foreignKeyName: "coach_breaks_instructor_id_fkey"
             columns: ["instructor_id"]
             isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "coach_breaks_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: false
             referencedRelation: "instructors"
             referencedColumns: ["id"]
           },
@@ -231,13 +224,6 @@ export type Database = {
           override_date?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "coach_date_overrides_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "coach_date_overrides_instructor_id_fkey"
             columns: ["instructor_id"]
@@ -277,13 +263,6 @@ export type Database = {
             foreignKeyName: "coach_slot_overrides_instructor_id_fkey"
             columns: ["instructor_id"]
             isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "coach_slot_overrides_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: false
             referencedRelation: "instructors"
             referencedColumns: ["id"]
           },
@@ -319,74 +298,10 @@ export type Database = {
             foreignKeyName: "coach_weekly_hours_instructor_id_fkey"
             columns: ["instructor_id"]
             isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "coach_weekly_hours_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: false
             referencedRelation: "instructors"
             referencedColumns: ["id"]
           },
         ]
-      }
-      coaches: {
-        Row: {
-          avatar_url: string | null
-          avg_rating: number
-          bio: string | null
-          created_at: string
-          daily_break_end: string | null
-          daily_break_start: string | null
-          deleted_at: string | null
-          display_name: string
-          hourly_rate_idr: number
-          hub_setup_at: string | null
-          id: string
-          min_booking_lead_minutes: number
-          open_to_book: boolean
-          specialty: string | null
-          total_raters: number
-          user_id: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          avg_rating?: number
-          bio?: string | null
-          created_at?: string
-          daily_break_end?: string | null
-          daily_break_start?: string | null
-          deleted_at?: string | null
-          display_name: string
-          hourly_rate_idr: number
-          hub_setup_at?: string | null
-          id?: string
-          min_booking_lead_minutes?: number
-          open_to_book?: boolean
-          specialty?: string | null
-          total_raters?: number
-          user_id: string
-        }
-        Update: {
-          avatar_url?: string | null
-          avg_rating?: number
-          bio?: string | null
-          created_at?: string
-          daily_break_end?: string | null
-          daily_break_start?: string | null
-          deleted_at?: string | null
-          display_name?: string
-          hourly_rate_idr?: number
-          hub_setup_at?: string | null
-          id?: string
-          min_booking_lead_minutes?: number
-          open_to_book?: boolean
-          specialty?: string | null
-          total_raters?: number
-          user_id?: string
-        }
-        Relationships: []
       }
       court_bookings: {
         Row: {
@@ -589,6 +504,63 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      instructors: {
+        Row: {
+          avatar_url: string | null
+          avg_rating: number
+          bio: string | null
+          created_at: string
+          daily_break_end: string | null
+          daily_break_start: string | null
+          deleted_at: string | null
+          display_name: string
+          hourly_rate_idr: number
+          hub_setup_at: string | null
+          id: string
+          min_booking_lead_minutes: number
+          open_to_book: boolean
+          specialty: string | null
+          total_raters: number
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          avg_rating?: number
+          bio?: string | null
+          created_at?: string
+          daily_break_end?: string | null
+          daily_break_start?: string | null
+          deleted_at?: string | null
+          display_name: string
+          hourly_rate_idr: number
+          hub_setup_at?: string | null
+          id?: string
+          min_booking_lead_minutes?: number
+          open_to_book?: boolean
+          specialty?: string | null
+          total_raters?: number
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          avg_rating?: number
+          bio?: string | null
+          created_at?: string
+          daily_break_end?: string | null
+          daily_break_start?: string | null
+          deleted_at?: string | null
+          display_name?: string
+          hourly_rate_idr?: number
+          hub_setup_at?: string | null
+          id?: string
+          min_booking_lead_minutes?: number
+          open_to_book?: boolean
+          specialty?: string | null
+          total_raters?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       match_join_requests: {
         Row: {
@@ -1444,13 +1416,6 @@ export type Database = {
             foreignKeyName: "programs_instructor_id_fkey"
             columns: ["instructor_id"]
             isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "programs_instructor_id_fkey"
-            columns: ["instructor_id"]
-            isOneToOne: false
             referencedRelation: "instructors"
             referencedColumns: ["id"]
           },
@@ -2073,63 +2038,7 @@ export type Database = {
       }
     }
     Views: {
-      instructors: {
-        Row: {
-          avatar_url: string | null
-          avg_rating: number | null
-          bio: string | null
-          created_at: string | null
-          daily_break_end: string | null
-          daily_break_start: string | null
-          deleted_at: string | null
-          display_name: string | null
-          hourly_rate_idr: number | null
-          hub_setup_at: string | null
-          id: string | null
-          min_booking_lead_minutes: number | null
-          open_to_book: boolean | null
-          specialty: string | null
-          total_raters: number | null
-          user_id: string | null
-        }
-        Insert: {
-          avatar_url?: string | null
-          avg_rating?: number | null
-          bio?: string | null
-          created_at?: string | null
-          daily_break_end?: string | null
-          daily_break_start?: string | null
-          deleted_at?: string | null
-          display_name?: string | null
-          hourly_rate_idr?: number | null
-          hub_setup_at?: string | null
-          id?: string | null
-          min_booking_lead_minutes?: number | null
-          open_to_book?: boolean | null
-          specialty?: string | null
-          total_raters?: number | null
-          user_id?: string | null
-        }
-        Update: {
-          avatar_url?: string | null
-          avg_rating?: number | null
-          bio?: string | null
-          created_at?: string | null
-          daily_break_end?: string | null
-          daily_break_start?: string | null
-          deleted_at?: string | null
-          display_name?: string | null
-          hourly_rate_idr?: number | null
-          hub_setup_at?: string | null
-          id?: string | null
-          min_booking_lead_minutes?: number | null
-          open_to_book?: boolean | null
-          specialty?: string | null
-          total_raters?: number | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       _apply_total_score_delta: {
