@@ -67,7 +67,7 @@ function PenggunaDetailPage() {
               <div className="flex flex-wrap gap-2 mt-2">
                 <Badge>Rank: {String(p.rank ?? "—")}</Badge>
                 <Badge variant="secondary">Role: {String(p.role)}</Badge>
-                {data?.isInstructor ? <Badge variant="default">Instruktur</Badge> : null}
+                {data?.isInstructor ? <Badge variant="default">Coach</Badge> : null}
                 <Badge variant="outline">Coins: {Number(p.coins).toLocaleString("id-ID")}</Badge>
                 <Badge variant={p.onboarded ? "default" : "outline"}>
                   {p.onboarded ? "Onboarded" : "Belum onboarding"}

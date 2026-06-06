@@ -2,9 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSuperadminAuth } from "@/lib/admin-superadmin-middleware";
 import {
+  isCoachBookingReference,
   isPatunganMatchReference,
   normalizeTransactionReferenceType,
   referenceTypeForKategori,
+  TX_REF_COACH_BOOKING,
   TX_REF_COURT_BOOKING_MATCH,
   TX_REF_COURT_BOOKING_PROGRAM,
   TX_REF_PATUNGAN_MATCH,
@@ -197,13 +199,13 @@ function bookingReferenceFromTransaksi(r: TransaksiDbRow): string | null {
 }
 
 function transaksiRowToTxRow(r: TransaksiDbRow): TxRow {
-  const ref = bookingReferenceFromTransaksi(r);
+  const { reference_type, reference_id } = hintReferenceFromTransaksi(r);
   return {
     amount_idr: Number(r.amount_idr ?? 0),
     status: r.status,
     created_at: r.created_at,
-    reference_id: ref,
-    reference_type: ref ? "court_booking" : null,
+    reference_id,
+    reference_type,
   };
 }
 
@@ -359,6 +361,12 @@ function hintReferenceFromTransaksi(r: TransaksiDbRow): {
   if (fromKategori && r.reference_id) {
     return { reference_type: fromKategori, reference_id: r.reference_id };
   }
+  if (isCoachBookingReference(r.reference_type) || fromKategori === TX_REF_COACH_BOOKING) {
+    return {
+      reference_type: TX_REF_COACH_BOOKING,
+      reference_id: r.reference_id ?? bookingReferenceFromTransaksi(r),
+    };
+  }
   const booking = bookingReferenceFromTransaksi(r);
   if (booking) return { reference_type: "court_booking", reference_id: booking };
   if (r.program_id) {
@@ -391,6 +399,9 @@ function hintReferenceFromTransaksi(r: TransaksiDbRow): {
   }
   if (r.reference_id && fromKategori === TX_REF_COURT_BOOKING_PROGRAM) {
     return { reference_type: TX_REF_COURT_BOOKING_PROGRAM, reference_id: r.reference_id };
+  }
+  if (r.reference_id && fromKategori === TX_REF_COACH_BOOKING) {
+    return { reference_type: TX_REF_COACH_BOOKING, reference_id: r.reference_id };
   }
   return { reference_type: null, reference_id: null };
 }

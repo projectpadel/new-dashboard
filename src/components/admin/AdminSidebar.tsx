@@ -31,7 +31,7 @@ const groups: ReadonlyArray<{
     items: [
       { to: "/admin/keuangan", label: "Keuangan", icon: LayoutGrid },
       { to: "/admin/pengguna", label: "Pengguna", icon: Users },
-      { to: "/admin/instruktur", label: "Instruktur", icon: GraduationCap },
+      { to: "/admin/coach", label: "Coach", icon: GraduationCap },
       { to: "/admin/reservasi", label: "Reservasi", icon: CalendarDays },
       { to: "/admin/program", label: "Program", icon: BookOpen },
       { to: "/admin/match", label: "Match", icon: Swords },

@@ -26,5 +26,6 @@ export const SYSTEM_PROMPT = `Anda adalah AI Assistant untuk dashboard admin klu
 | Match (data pertandingan) | query_matches |
 | Patungan pemain match | reference_type patungan_match (kategori match_player) di query_transactions |
 | Booking lapangan match | reference_type court_booking_match (kategori match_court) di query_transactions |
+| Coach booking | reference_type coach_booking (kategori coach_addon) di query_transactions |
 | Jadwal court | query_court_schedule |
 | PDF | generate_pdf_report`;

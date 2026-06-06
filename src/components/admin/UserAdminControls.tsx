@@ -66,9 +66,10 @@ export function UserAdminControls({ userId, currentRole, isInstructor }: Props) 
       });
     },
     onSuccess: () => {
-      toast.success("Pengguna sekarang eligible sebagai instruktur.");
+      toast.success("Pengguna sekarang eligible sebagai coach.");
       void queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "coaches"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "instructors"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -77,9 +78,10 @@ export function UserAdminControls({ userId, currentRole, isInstructor }: Props) 
   const revokeMutation = useMutation({
     mutationFn: () => revokeFn({ data: { userId } }),
     onSuccess: () => {
-      toast.success("Status instruktur dicabut.");
+      toast.success("Status coach dicabut.");
       void queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "coaches"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "instructors"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -92,7 +94,7 @@ export function UserAdminControls({ userId, currentRole, isInstructor }: Props) 
       <div>
         <h2 className="font-semibold text-foreground">Kelola pengguna (Superadmin)</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Ubah role atau jadikan / cabut eligibility instruktur.
+          Ubah role atau jadikan / cabut eligibility coach.
         </p>
       </div>
 
@@ -122,22 +124,22 @@ export function UserAdminControls({ userId, currentRole, isInstructor }: Props) 
       </div>
 
       <div className="border-t pt-4 space-y-3">
-        <Label>Status instruktur</Label>
+        <Label>Status coach</Label>
         {isInstructor ? (
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-muted-foreground">Pengguna sudah terdaftar di tabel instruktur.</p>
+            <p className="text-sm text-muted-foreground">Pengguna sudah terdaftar sebagai coach.</p>
             <Button
               type="button"
               variant="destructive"
               size="sm"
               disabled={busy}
               onClick={() => {
-                if (window.confirm("Cabut eligibility instruktur untuk pengguna ini?")) {
+                if (window.confirm("Cabut eligibility coach untuk pengguna ini?")) {
                   revokeMutation.mutate();
                 }
               }}
             >
-              Cabut eligibility instruktur
+              Cabut eligibility coach
             </Button>
           </div>
         ) : (
@@ -154,7 +156,7 @@ export function UserAdminControls({ userId, currentRole, isInstructor }: Props) 
               />
             </div>
             <Button type="button" disabled={busy} onClick={() => promoteMutation.mutate()}>
-              Jadikan instruktur
+              Jadikan coach
             </Button>
           </div>
         )}

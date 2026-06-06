@@ -1,7 +1,12 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { fetchAuthMetaForUserIds } from "@/lib/auth-user-meta.server";
 import { normalizeDateInput } from "@/lib/ai/date-parse";
-import { normalizeTransactionReferenceType } from "@/lib/finance-reference-types";
+import {
+  isCoachBookingReference,
+  normalizeTransactionReferenceType,
+  referenceTypeForKategori,
+  TX_REF_COACH_BOOKING,
+} from "@/lib/finance-reference-types";
 import type { Json } from "@/integrations/supabase/types";
 
 const FINANCE_TZ = "Asia/Jakarta";
@@ -126,18 +131,33 @@ function transaksiPayerUserId(r: TransaksiDbRowLoose): string | null {
 function mapTransaksiRow(r: TransaksiDbRowLoose): TxListRow {
   const bookingId = transaksiBookingId(r);
   const kategori = "kategori" in r ? (r as { kategori?: string | null }).kategori : null;
-  const refType = bookingId
-    ? "court_booking"
-    : normalizeTransactionReferenceType(r.reference_type, {
-        matchId: r.match_id ?? undefined,
-        kategori,
-      });
+  const fromKategori = referenceTypeForKategori(kategori);
+  let refType: string | null;
+  let refId: string | null;
+
+  if (fromKategori && r.reference_id) {
+    refType = fromKategori;
+    refId = r.reference_id;
+  } else if (isCoachBookingReference(r.reference_type) || fromKategori === TX_REF_COACH_BOOKING) {
+    refType = TX_REF_COACH_BOOKING;
+    refId = r.reference_id ?? bookingId;
+  } else if (bookingId) {
+    refType = "court_booking";
+    refId = bookingId;
+  } else {
+    refType = normalizeTransactionReferenceType(r.reference_type, {
+      matchId: r.match_id ?? undefined,
+      kategori,
+    });
+    refId = r.reference_id ?? r.match_id ?? null;
+  }
+
   return {
     id: r.id,
     amount_idr: Number(r.amount_idr ?? 0),
     status: r.status,
     created_at: r.created_at,
-    reference_id: r.reference_id ?? bookingId ?? r.match_id ?? null,
+    reference_id: refId,
     reference_type: refType,
     payer_user_id: transaksiPayerUserId(r),
     court_booking_id: bookingId,

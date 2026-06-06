@@ -308,6 +308,8 @@ function mapTransaksiRow(r: Record<string, unknown>): TxRow {
   else if (kategori === "match_court") refType = "court_booking_match";
   else if (kategori === "program_player") refType = "patungan_program";
   else if (kategori === "program_court") refType = "court_booking_program";
+  else if (kategori === "coach_addon") refType = "coach_booking";
+  else if (refType && String(refType).toLowerCase() === "coach_booking") refType = "coach_booking";
   else if (refType && String(refType).toLowerCase() === "match") refType = "patungan_match";
   else if (refType && String(refType).toLowerCase() === "program") {
     refType = kategori === "program_court" ? "court_booking_program" : "patungan_program";

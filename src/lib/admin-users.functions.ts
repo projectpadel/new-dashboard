@@ -337,7 +337,7 @@ export const promoteUserToInstructor = createServerFn({ method: "POST" })
       .select("id")
       .eq("user_id", data.userId)
       .maybeSingle();
-    if (existing) throw new Error("Pengguna sudah terdaftar sebagai instruktur.");
+    if (existing) throw new Error("Pengguna sudah terdaftar sebagai coach.");
 
     const { data: profile, error: pErr } = await supabaseAdmin
       .from("profiles")
@@ -348,7 +348,7 @@ export const promoteUserToInstructor = createServerFn({ method: "POST" })
     if (!profile) throw new Error("Profil pengguna tidak ditemukan.");
 
     const displayName =
-      profile.display_name?.trim() || profile.username?.trim() || "Instruktur";
+      profile.display_name?.trim() || profile.username?.trim() || "Coach";
     const hourlyRate = data.hourlyRateIdr ?? 150_000;
 
     const { data: inserted, error } = await supabaseAdmin
@@ -381,7 +381,7 @@ export const revokeInstructorEligibility = createServerFn({ method: "POST" })
       .eq("user_id", data.userId)
       .maybeSingle();
     if (findErr) throw new Error(findErr.message);
-    if (!row) throw new Error("Pengguna bukan instruktur.");
+    if (!row) throw new Error("Pengguna bukan coach.");
 
     const { count: programCount, error: countErr } = await supabaseAdmin
       .from("programs")
@@ -389,7 +389,7 @@ export const revokeInstructorEligibility = createServerFn({ method: "POST" })
       .eq("instructor_id", row.id);
     if (countErr) throw new Error(countErr.message);
     if (programCount && programCount > 0) {
-      throw new Error("Instruktur masih terikat program. Pindahkan program terlebih dahulu.");
+      throw new Error("Coach masih terikat program. Pindahkan program terlebih dahulu.");
     }
 
     const { error } = await supabaseAdmin.from("instructors").delete().eq("user_id", data.userId);

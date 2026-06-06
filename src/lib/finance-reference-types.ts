@@ -10,6 +10,9 @@ export const TX_REF_PATUNGAN_PROGRAM = "patungan_program" as const;
 /** Pembayaran lapangan program (kategori program_court). */
 export const TX_REF_COURT_BOOKING_PROGRAM = "court_booking_program" as const;
 
+/** Booking coach / add-on instruktur (kategori coach_addon). */
+export const TX_REF_COACH_BOOKING = "coach_booking" as const;
+
 /** @deprecated Gunakan TX_REF_PATUNGAN_MATCH */
 export const TX_REF_MATCH_LEGACY = "match";
 
@@ -22,6 +25,7 @@ export function referenceTypeForKategori(kategori: string | null | undefined): s
   if (k === "match_court") return TX_REF_COURT_BOOKING_MATCH;
   if (k === "program_player") return TX_REF_PATUNGAN_PROGRAM;
   if (k === "program_court") return TX_REF_COURT_BOOKING_PROGRAM;
+  if (k === "coach_addon") return TX_REF_COACH_BOOKING;
   return null;
 }
 
@@ -42,6 +46,10 @@ export function isCourtBookingProgramReference(referenceType: string | null | un
   return (referenceType ?? "").trim().toLowerCase() === "court_booking_program";
 }
 
+export function isCoachBookingReference(referenceType: string | null | undefined): boolean {
+  return (referenceType ?? "").trim().toLowerCase() === TX_REF_COACH_BOOKING;
+}
+
 export function normalizeTransactionReferenceType(
   referenceType: string | null | undefined,
   opts?: {
@@ -57,6 +65,7 @@ export function normalizeTransactionReferenceType(
   if (isCourtBookingMatchReference(referenceType)) return TX_REF_COURT_BOOKING_MATCH;
   if (isPatunganProgramReference(referenceType)) return TX_REF_PATUNGAN_PROGRAM;
   if (isCourtBookingProgramReference(referenceType)) return TX_REF_COURT_BOOKING_PROGRAM;
+  if (isCoachBookingReference(referenceType)) return TX_REF_COACH_BOOKING;
   return referenceType?.trim() || null;
 }
 
@@ -69,6 +78,7 @@ export const REF_TYPE_LABEL: Record<string, string> = {
   [TX_REF_COURT_BOOKING_MATCH]: "Booking Match (Lapangan)",
   [TX_REF_PATUNGAN_PROGRAM]: "Patungan Program",
   [TX_REF_COURT_BOOKING_PROGRAM]: "Booking Program (Lapangan)",
+  [TX_REF_COACH_BOOKING]: "Coach Booking",
   match: "Patungan Match",
 };
 
@@ -84,6 +94,7 @@ export const TX_REFERENCE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: TX_REF_COURT_BOOKING_MATCH, label: REF_TYPE_LABEL[TX_REF_COURT_BOOKING_MATCH] },
   { value: TX_REF_PATUNGAN_PROGRAM, label: REF_TYPE_LABEL[TX_REF_PATUNGAN_PROGRAM] },
   { value: TX_REF_COURT_BOOKING_PROGRAM, label: REF_TYPE_LABEL[TX_REF_COURT_BOOKING_PROGRAM] },
+  { value: TX_REF_COACH_BOOKING, label: REF_TYPE_LABEL[TX_REF_COACH_BOOKING] },
   { value: "court_booking", label: REF_TYPE_LABEL.court_booking },
   { value: "tournament_team", label: REF_TYPE_LABEL.tournament },
   { value: TX_REF_PROGRAM_LEGACY, label: REF_TYPE_LABEL.program },

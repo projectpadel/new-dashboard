@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
-export function AddInstructorDialog() {
+export function AddCoachDialog() {
   const [open, setOpen] = React.useState(false);
   const [userId, setUserId] = React.useState("");
   const [hourlyRate, setHourlyRate] = React.useState("150000");
@@ -34,7 +34,7 @@ export function AddInstructorDialog() {
 
   const fetchEligible = useServerFn(getUsersEligibleForInstructor);
   const { data, isLoading } = useQuery({
-    queryKey: ["admin", "instructors", "eligible-users"],
+    queryKey: ["admin", "coaches", "eligible-users"],
     queryFn: () => fetchEligible(),
     enabled: open,
   });
@@ -53,9 +53,10 @@ export function AddInstructorDialog() {
       });
     },
     onSuccess: () => {
-      toast.success("Instruktur berhasil ditambahkan.");
+      toast.success("Coach berhasil ditambahkan.");
       setOpen(false);
       setUserId("");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "coaches"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "instructors"] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },
@@ -69,14 +70,14 @@ export function AddInstructorDialog() {
       <DialogTrigger asChild>
         <Button type="button" size="sm" className="gap-1.5">
           <UserPlus className="size-4" />
-          Tambah instruktur
+          Tambah coach
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Tambah instruktur</DialogTitle>
+          <DialogTitle>Tambah coach</DialogTitle>
           <DialogDescription>
-            Pilih pengguna yang sudah terdaftar untuk dijadikan eligible instruktur.
+            Pilih pengguna yang sudah terdaftar untuk dijadikan coach.
           </DialogDescription>
         </DialogHeader>
 
@@ -98,7 +99,7 @@ export function AddInstructorDialog() {
               </SelectContent>
             </Select>
             {!isLoading && users.length === 0 && (
-              <p className="text-xs text-muted-foreground">Semua pengguna sudah menjadi instruktur.</p>
+              <p className="text-xs text-muted-foreground">Semua pengguna sudah menjadi coach.</p>
             )}
           </div>
 

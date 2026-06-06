@@ -206,7 +206,7 @@ function UserDetailCard({ user: u }: { user: UserRow }) {
         <DetailItem label="Membership Tier" value={u.membership_tier ?? "basic"} />
         <DetailItem label="Coins" value={u.coins.toLocaleString("id-ID")} />
         <DetailItem label="Last Active" value={u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString("id-ID") : "—"} />
-        <DetailItem label="Instruktur" value={u.isInstructor ? "Ya" : "Tidak"} />
+        <DetailItem label="Coach" value={u.isInstructor ? "Ya" : "Tidak"} />
       </div>
 
       {u.membership && (
